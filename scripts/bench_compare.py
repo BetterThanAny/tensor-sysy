@@ -60,7 +60,7 @@ def main() -> int:
     baseline = load(args.baseline)
     current  = load(args.current)
 
-    fail_count = warn_count = imp_count = 0
+    fail_count = warn_count = imp_count = missing_count = 0
     # Only compare rows tracked in baseline. tsy-bench may sweep more shapes
     # than the regression gate tracks (e.g. tiny shapes kept for tiled-alignment
     # correctness coverage but excluded from baseline because measurement
@@ -75,6 +75,7 @@ def main() -> int:
         if c is None:
             print(f"MISSING  {prim:18s} {M:>5}x{K:>5}x{N:>5} {var:12s} "
                   f"baseline={b:.3f}ms")
+            missing_count += 1
             continue
         ratio = c / b
         status = classify(ratio, prim)
@@ -84,8 +85,9 @@ def main() -> int:
         elif status == "WARN": warn_count += 1
         elif status == "IMPROVED": imp_count += 1
 
+    ok_count = len(tracked_keys) - fail_count - warn_count - imp_count - missing_count
     print(f"\nsummary: {fail_count} FAIL, {warn_count} WARN, {imp_count} IMPROVED, "
-          f"{len(tracked_keys) - fail_count - warn_count - imp_count} OK")
+          f"{missing_count} MISSING, {ok_count} OK")
 
     if imp_count > 0 and not args.update_baseline:
         print("hint: confirmed improvements? re-run with --update-baseline")
