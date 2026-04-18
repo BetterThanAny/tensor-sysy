@@ -1,0 +1,43 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  cpu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-13 cmake bison flex python3-venv
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python venv
+        run: |
+          uv venv .venv
+          uv pip install --python .venv/bin/python numpy pytest
+
+      - name: Print tool versions
+        run: |
+          g++-13 --version
+          cmake --version
+          bison --version
+          flex --version
+          .venv/bin/python --version
+          .venv/bin/python -c "import numpy, pytest; print('numpy', numpy.__version__, 'pytest', pytest.__version__)"
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-13
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
