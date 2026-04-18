@@ -248,6 +248,7 @@ function(tsy_add_example NAME TSY_FILE)
 endfunction()
 
 tsy_add_example(mlp examples/mlp.tsy)
+tsy_add_example(transformer_block examples/transformer_block.tsy)
 
 # --- W8: helper to compile a .tsy example into a CUDA host binary --------
 function(tsy_add_cuda_example NAME TSY_FILE)
@@ -275,6 +276,7 @@ function(tsy_add_cuda_example NAME TSY_FILE)
 endfunction()
 
 tsy_add_cuda_example(matmul_cuda_demo examples/matmul_tiny_cuda.tsy)
+    tsy_add_cuda_example(transformer_block_cuda examples/transformer_block.tsy)
 
 if(TSY_HAVE_RUNTIME_CUDA)
     # W9: CUDA-event precision matmul bench binary.

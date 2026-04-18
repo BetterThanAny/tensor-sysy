@@ -1,0 +1,40 @@
+// W10 fixture: toy single-head transformer block (no MHA / mask / RoPE).
+//   x → rmsnorm → Q/K/V projs → Q @ Kᵀ → softmax → @V → out_proj → residual
+//   x1 → rmsnorm → fc1 → ReLU → fc2 → residual → out
+//
+// Shapes chosen small enough for hand-verifiable unit tests while still
+// exercising every new W10 primitive. Dot-product attention (not scaled)
+// — the numpy reference in tests/e2e/reference.py matches the omission.
+const int S = 4;   // sequence length
+const int D = 8;   // model dim
+const int F = 16;  // ffn hidden dim
+
+void transformer_block(
+    tensor<f32>[S, D] x,
+    tensor<f32>[D, D] Wq,
+    tensor<f32>[D, D] Wk,
+    tensor<f32>[D, D] Wv,
+    tensor<f32>[D, D] Wo,
+    tensor<f32>[D, F] W1,
+    tensor<f32>[F, D] W2
+) {
+    tensor<f32>[S, D] x_n   = @rmsnorm(x);
+    tensor<f32>[S, D] Q     = @matmul(x_n, Wq);
+    tensor<f32>[S, D] K     = @matmul(x_n, Wk);
+    tensor<f32>[S, D] V     = @matmul(x_n, Wv);
+    tensor<f32>[D, S] Kt    = @transpose(K);
+    tensor<f32>[S, S] attn_scores = @matmul(Q, Kt);
+    tensor<f32>[S, S] attn  = @softmax(attn_scores);
+    tensor<f32>[S, D] ctx   = @matmul(attn, V);
+    tensor<f32>[S, D] a_out = @matmul(ctx, Wo);
+    tensor<f32>[S, D] x1    = @add(x, a_out);
+
+    tensor<f32>[S, D] x1_n  = @rmsnorm(x1);
+    tensor<f32>[S, F] h     = @matmul(x1_n, W1);
+    tensor<f32>[S, F] h1    = @relu(h);
+    tensor<f32>[S, D] f_out = @matmul(h1, W2);
+    tensor<f32>[S, D] out   = @add(x1, f_out);
+    return;
+}
+
+int main() { return 0; }

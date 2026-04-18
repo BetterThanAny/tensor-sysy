@@ -84,6 +84,12 @@ if(TARGET tsy_runtime_cpu)
     set_tests_properties(codegen_emit_cpp_mlp_contains_adapter_calls PROPERTIES
         PASS_REGULAR_EXPRESSION "tsy::runtime::adapterMatMul.*tsy::runtime::adapterSoftmax"
     )
+
+    add_executable(test_transpose_relu_cases adapter/test_transpose_relu_cases.cpp)
+    target_link_libraries(test_transpose_relu_cases PRIVATE tsy_runtime_cpu)
+    add_test(NAME transpose_relu_cases
+        COMMAND test_transpose_relu_cases
+    )
 endif()
 
 # W8: CUDA adapter tests. Outer gate is just `tsy_runtime_cuda`.
@@ -251,3 +257,10 @@ set_tests_properties(cli_emit_lir_disable_schedule_no_variant PROPERTIES
     FAIL_REGULAR_EXPRESSION "variant="
 )
 
+# W10: transformer_block native run — must print "local out shape=[4,8]".
+add_test(NAME cli_run_transformer_block_native
+    COMMAND tsc run-lir ${CMAKE_SOURCE_DIR}/examples/transformer_block.tsy
+)
+set_tests_properties(cli_run_transformer_block_native PROPERTIES
+    PASS_REGULAR_EXPRESSION "local out shape=\\[4,8\\]"
+)
