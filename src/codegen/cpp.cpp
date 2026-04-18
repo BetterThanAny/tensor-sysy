@@ -17,10 +17,12 @@ std::string identFor(const Buffer& b) {
 }
 
 const char* adapterSymbolFor(const std::string& primitive) {
-    if (primitive == "matmul")  return "adapterMatMul";
-    if (primitive == "add")     return "adapterAdd";
-    if (primitive == "softmax") return "adapterSoftmax";
-    if (primitive == "rmsnorm") return "adapterRMSNorm";
+    if (primitive == "matmul")    return "adapterMatMul";
+    if (primitive == "add")       return "adapterAdd";
+    if (primitive == "softmax")   return "adapterSoftmax";
+    if (primitive == "rmsnorm")   return "adapterRMSNorm";
+    if (primitive == "transpose") return "adapterTranspose";
+    if (primitive == "relu")      return "adapterReLU";
     return nullptr;
 }
 
