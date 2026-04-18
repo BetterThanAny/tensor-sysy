@@ -108,7 +108,16 @@ bool emitCudaModule(std::ostream& os, const Module& m,
             if (i) os << ", ";
             os << identFor(f->buffers[s.operand_bufs[i]]);
         }
-        os << ", " << identFor(f->buffers[s.result_buf]) << ");\n";
+        os << ", " << identFor(f->buffers[s.result_buf]);
+        // W9: pass variant as trailing arg to adapterMatMulCuda when set.
+        // Only matmul takes a variant; other primitives ignore attrs.
+        if (s.primitive == "matmul") {
+            auto it = s.attrs.find("variant");
+            if (it != s.attrs.end()) {
+                os << ", \"" << it->second << "\"";
+            }
+        }
+        os << ");\n";
     }
     os << "\n";
 
