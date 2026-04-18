@@ -265,7 +265,16 @@ set_tests_properties(cli_run_transformer_block_native PROPERTIES
     PASS_REGULAR_EXPRESSION "local out shape=\\[4,8\\]"
 )
 
-# W11: verify TSY_PYTHON_EXECUTABLE has numpy + pytest before registering e2e tests.
+# W11: verify TSY_PYTHON_EXECUTABLE is usable before registering e2e tests.
+# Existence check runs first — catches stale cache pointing at a deleted .venv
+# with a clear "doesn't exist" error instead of a confusing import failure.
+if(NOT EXISTS "${TSY_PYTHON_EXECUTABLE}")
+    message(FATAL_ERROR
+        "TSY_PYTHON_EXECUTABLE=${TSY_PYTHON_EXECUTABLE} does not exist.\n"
+        "  Likely cause: stale CMakeCache.txt after .venv was recreated/deleted.\n"
+        "  Fix: rm build/CMakeCache.txt && reconfigure, "
+        "or pass -DTSY_PYTHON_EXECUTABLE=<path>")
+endif()
 execute_process(
     COMMAND ${TSY_PYTHON_EXECUTABLE} -c "import numpy, pytest"
     RESULT_VARIABLE _tsy_py_probe
