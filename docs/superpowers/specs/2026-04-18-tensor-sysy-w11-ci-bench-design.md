@@ -13,7 +13,7 @@
 2. **本地 GPU baseline**：`tsy-bench` 产出固定 shape + 固定 warmup/run 的 median ms，入 `benchmarks/baseline/rtx3080_wsl.csv`；`scripts/bench_compare.py` 做分 primitive 差异化阈值回归检查：matmul 10% 硬失败 / 5% warning、transformer_block 15% / 10%（端到端测量噪声更大，阈值相应放宽）。
 3. **基线文档**：`docs/benchmarks/baseline.md` 解释数据来源、硬件条件、复现步骤、更新规范。
 
-这是 12 周 PLAN.md 的**第一次自动化质量门槛**：W0-W10 的正确性纪律依赖手动 `ctest`；从 W11 起 push 到 main 即跑 CI。
+这是 12 阶段 PLAN.md 的**第一次自动化质量门槛**：W0-W10 的正确性纪律依赖手动 `ctest`；从 W11 起 push 到 main 即跑 CI。
 
 ## 2. 范围（用户 2026-04-18 五轮确认）
 
@@ -289,7 +289,7 @@ python3 scripts/bench_compare.py \
 - **基线更新触发条件**：
   - 工具链升级（CUDA toolkit / driver 更新 → 数字会变）
   - 调度策略改变（W9 scheduler 或后续 LayoutLoweringPass 真正落地）
-  - 主动性能工作（某周专门优化某 kernel）
+  - 主动性能工作（某阶段专门优化某 kernel）
 - **基线更新流程**：`bash scripts/bench_local.sh` 失败 → 确认改动意图（优化 or 回归）→ 若优化：`python3 scripts/bench_compare.py ... --update-baseline` → commit CSV + 在 commit message 里说明数值变化
 
 ### 4.11 `PLAN.md` 更新

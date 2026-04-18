@@ -40,7 +40,7 @@ LIR
 ## 先改的原则
 
 ### 范围收缩
-前 6 周只支持这 4 个核心算子：
+前 6 个阶段只支持这 4 个核心算子：
 
 - `matmul`
 - `add`
@@ -57,9 +57,9 @@ LIR
 
 ---
 
-## 12 周计划 v2
+## 12 阶段计划 v2
 
-| 周 | 主题 | 交付物 | 验收命令 | 必测项 |
+| 阶段 | 主题 | 交付物 | 验收命令 | 必测项 |
 |---|---|---|---|---|
 | **W0** | 基建 + 诊断骨架 | 新仓 `tensor-sysy`、CMake、CLI、测试框架、位置追踪 `SourceLocation` | `ctest` 可跑；`tsc --help` 正常 | CLI smoke、错误信息 smoke |
 | **W1** | 前端迁移 + 张量语法 | 从 `sysy-compiler` 迁 `sysy.l/y`；支持 `tensor<f32>[M,N]`、`@matmul/@add/@softmax/@rmsnorm` | `ctest -R parse` | 原 SysY 回归、张量 parse、诊断测试 |
@@ -320,7 +320,7 @@ tests/golden/matmul_basic/
 | GPU 路径返工 | W8 前不碰复杂 fusion，先单算子闭环 |
 | 诊断做晚了返工 | `SourceLocation` 前移到 W0 |
 | 性能 benchmark 噪声太大 | 固定 shape、固定 warmup/run、取中位数 |
-| 周数不够 | W11/W12 可压缩，文档和博客不阻断核心交付 |
+| 阶段数不够 | W11/W12 可压缩，文档和博客不阻断核心交付 |
 
 ---
 
@@ -331,7 +331,7 @@ tests/golden/matmul_basic/
 
 1. `README.md` 真实反映 W11 状态（CPU+CUDA 闭环、32/32 ctest、benchmark gate）
 2. `docs/architecture.md` 给出前端→HIR→LIR→adapter→backend 数据流 + pass pipeline + 扩展点
-3. `docs/blog/writeup.md` 记录 12 周关键决策与反复盘（尤其是 baseline 从 18 行收窄到 3 行的证据）
+3. `docs/blog/writeup.md` 记录 12 阶段关键决策与反复盘（尤其是 baseline 从 18 行收窄到 3 行的证据）
 4. `docs/demo.md` 的 §2-§6 每一条命令实机跑通（含 CI-equivalent 重建流程）
 
 ### W12 验收命令

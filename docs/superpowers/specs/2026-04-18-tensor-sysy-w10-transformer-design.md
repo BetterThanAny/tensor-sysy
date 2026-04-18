@@ -9,7 +9,7 @@
 
 在 tensor-sysy 上跑通一个**toy 单头 transformer block**：rmsnorm → attention → residual → rmsnorm → FFN(ReLU) → residual，三个 backend（native / cpu-adapter / cuda-adapter）输出都和 numpy reference 在 `atol=1e-3, rtol=1e-2` 内一致。
 
-这是 12 周 PLAN.md 的**第一个端到端架构对拍**：第一次让编译器的输出被独立参考框架（numpy）验证，而不是三个自家 backend 互相对拍。
+这是 12 阶段 PLAN.md 的**第一个端到端架构对拍**：第一次让编译器的输出被独立参考框架（numpy）验证，而不是三个自家 backend 互相对拍。
 
 ## 2. 范围（用户 2026-04-18 四轮确认）
 
