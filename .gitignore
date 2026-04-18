@@ -16,3 +16,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# MCP tool workspaces (not project content)
+.serena/
+.pytest_cache/
