@@ -86,6 +86,28 @@ void kernelRMSNorm(const NamedTensor& x, NamedTensor& y) {
     }
 }
 
+// 2-D transpose: y[j, i] = x[i, j]. Caller ensures x is rank 2 (verifier's job).
+void kernelTranspose(const NamedTensor& x, NamedTensor& y) {
+    int64_t M = x.dims[0];
+    int64_t N = x.dims[1];
+    y.data.assign(static_cast<size_t>(M) * static_cast<size_t>(N), 0.0f);
+    for (int64_t i = 0; i < M; ++i) {
+        for (int64_t j = 0; j < N; ++j) {
+            y.data[j * M + i] = x.data[i * N + j];
+        }
+    }
+}
+
+// Elementwise ReLU: y[i] = max(0, x[i]). Shape preserved.
+void kernelReLU(const NamedTensor& x, NamedTensor& y) {
+    const int64_t n = static_cast<int64_t>(x.data.size());
+    y.data.assign(n, 0.0f);
+    for (int64_t i = 0; i < n; ++i) {
+        float v = x.data[i];
+        y.data[i] = v < 0.0f ? 0.0f : v;
+    }
+}
+
 // --- executor ---------------------------------------------------------------
 
 NamedTensor materialise(const Buffer& b) {
@@ -130,6 +152,12 @@ RunResult runFunctionImpl(const Function& f, DiagnosticEngine& diag) {
         } else if (s.primitive == "rmsnorm") {
             if (s.operand_bufs.size() != 1) { diag.error(s.loc, "rmsnorm: expected 1 operand"); r.ok = false; continue; }
             kernelRMSNorm(r.buffers[s.operand_bufs[0]], out);
+        } else if (s.primitive == "transpose") {
+            if (s.operand_bufs.size() != 1) { diag.error(s.loc, "transpose: expected 1 operand"); r.ok = false; continue; }
+            kernelTranspose(r.buffers[s.operand_bufs[0]], out);
+        } else if (s.primitive == "relu") {
+            if (s.operand_bufs.size() != 1) { diag.error(s.loc, "relu: expected 1 operand"); r.ok = false; continue; }
+            kernelReLU(r.buffers[s.operand_bufs[0]], out);
         } else {
             diag.error(s.loc, "interpreter: unknown primitive '" + s.primitive + "'");
             r.ok = false;
