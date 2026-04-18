@@ -104,34 +104,17 @@ float gflops(int M, int K, int N, float ms) {
     return static_cast<float>(ops / (static_cast<double>(ms) * 1e6));
 }
 
-int usage(const char* progname) {
-    std::cerr << "usage: " << progname << " [--smoke] "
-              << "[--shapes MxKxN[,...]] [--variants v1[,v2,...]]\n";
-    return 2;
-}
-
-}  // namespace
-
-int main(int argc, char** argv) {
+struct Options {
     bool smoke = false;
     std::string shapes_arg;
     std::string variants_arg;
+};
 
-    for (int i = 1; i < argc; i++) {
-        std::string a = argv[i];
-        if (a == "--smoke") { smoke = true; }
-        else if (a.rfind("--shapes=", 0) == 0) shapes_arg = a.substr(9);
-        else if (a == "--shapes" && i + 1 < argc) shapes_arg = argv[++i];
-        else if (a.rfind("--variants=", 0) == 0) variants_arg = a.substr(11);
-        else if (a == "--variants" && i + 1 < argc) variants_arg = argv[++i];
-        else if (a == "-h" || a == "--help") { return usage(argv[0]); }
-        else { return usage(argv[0]); }
-    }
-
+int runMatmulBench(const Options& opts) {
     std::vector<Shape> shapes;
-    if (!shapes_arg.empty()) shapes = parseShapes(shapes_arg);
-    else if (smoke)          shapes = { {256, 256, 256} };
-    else                     shapes = {
+    if (!opts.shapes_arg.empty()) shapes = parseShapes(opts.shapes_arg);
+    else if (opts.smoke)          shapes = { {256, 256, 256} };
+    else                          shapes = {
         {256, 256, 256},
         {512, 512, 512},
         {1024, 1024, 1024},
@@ -140,8 +123,8 @@ int main(int argc, char** argv) {
     };
 
     std::vector<std::string> variants;
-    if (!variants_arg.empty()) variants = parseVariants(variants_arg);
-    else                       variants = { "naive", "tiled", "cublas" };
+    if (!opts.variants_arg.empty()) variants = parseVariants(opts.variants_arg);
+    else                            variants = { "naive", "tiled", "cublas" };
 
     std::cout << "primitive,M,K,N,variant,ms_median,gflops\n";
     for (const auto& s : shapes) {
@@ -159,4 +142,37 @@ int main(int argc, char** argv) {
         }
     }
     return 0;
+}
+
+int usage(const char* progname) {
+    std::cerr << "usage: " << progname
+              << " [--primitive matmul|transformer_block] [--smoke] "
+              << "[--shapes MxKxN[,...]] [--variants v1[,v2,...]]\n";
+    return 2;
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+    Options opts;
+    std::string primitive = "matmul";
+
+    for (int i = 1; i < argc; i++) {
+        std::string a = argv[i];
+        if (a == "--smoke") opts.smoke = true;
+        else if (a.rfind("--primitive=", 0) == 0) primitive = a.substr(12);
+        else if (a == "--primitive" && i + 1 < argc) primitive = argv[++i];
+        else if (a.rfind("--shapes=", 0) == 0) opts.shapes_arg = a.substr(9);
+        else if (a == "--shapes" && i + 1 < argc) opts.shapes_arg = argv[++i];
+        else if (a.rfind("--variants=", 0) == 0) opts.variants_arg = a.substr(11);
+        else if (a == "--variants" && i + 1 < argc) opts.variants_arg = argv[++i];
+        else if (a == "-h" || a == "--help") { return usage(argv[0]); }
+        else { return usage(argv[0]); }
+    }
+
+    if (primitive == "matmul") return runMatmulBench(opts);
+    // Task 7 will add: if (primitive == "transformer_block") return runTransformerBlockBench();
+    std::cerr << "unknown --primitive: " << primitive
+              << " (valid: matmul)\n";
+    return 2;
 }
