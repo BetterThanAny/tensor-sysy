@@ -36,6 +36,15 @@ add_test(NAME pass_cases
     COMMAND test_pass_cases ${CMAKE_SOURCE_DIR}/examples
 )
 
+# W9: ScheduleCudaPass unit test. Pure LIR pass + CPU code — no CUDA
+# runtime needed, so this is NOT gated on tsy_runtime_cuda.
+add_executable(test_schedule_cuda_cases passes/test_schedule_cuda_cases.cpp)
+target_link_libraries(test_schedule_cuda_cases PRIVATE tsy_passes)
+
+add_test(NAME pass_schedule_cuda_cases
+    COMMAND test_schedule_cuda_cases
+)
+
 # W6: CPU runtime adapter cases (primitive semantics + interp parity).
 # Registered only when mini-llm-engine/ops_cpu.cpp was found at configure
 # time so CI on a standalone clone still reports a sensible status.
@@ -210,5 +219,26 @@ add_test(NAME cli_emit_hir_smoke_sysy
 )
 set_tests_properties(cli_emit_hir_smoke_sysy PROPERTIES
     PASS_REGULAR_EXPRESSION "module.*func @main"
+)
+
+# W9: --opt=O1 --disable-pass=dce keeps the matmul call in LIR so that
+# schedule-cuda can annotate it with variant="tiled" for the 128^3 fixture.
+# (Without --disable-pass=dce the matmul result %C is dead and DCE removes
+# it before LIR lowering, leaving nothing for schedule-cuda to tag.)
+add_test(NAME cli_emit_lir_schedule_shows_variant
+    COMMAND tsc emit-lir --opt=O1 --disable-pass=dce
+            ${CMAKE_SOURCE_DIR}/examples/run_matmul_medium.tsy
+)
+set_tests_properties(cli_emit_lir_schedule_shows_variant PROPERTIES
+    PASS_REGULAR_EXPRESSION "variant=\"tiled\""
+)
+
+# W9: --disable-pass=schedule-cuda must suppress the variant attr.
+add_test(NAME cli_emit_lir_disable_schedule_no_variant
+    COMMAND tsc emit-lir --opt=O1 --disable-pass=dce --disable-pass=schedule-cuda
+            ${CMAKE_SOURCE_DIR}/examples/run_matmul_medium.tsy
+)
+set_tests_properties(cli_emit_lir_disable_schedule_no_variant PROPERTIES
+    FAIL_REGULAR_EXPRESSION "variant="
 )
 

@@ -1,0 +1,12 @@
+// W9 scheduler fixture: 512x512x512 matmul. Aligned + large_enough
+// pass but M*N=262144 > 256^2=65536 so scheduler picks variant="cublas".
+const int M = 512;
+const int K = 512;
+const int N = 512;
+
+void matmul_layer(tensor<f32>[M, K] A, tensor<f32>[K, N] B) {
+    tensor<f32>[M, N] C = @matmul(A, B);
+    return;
+}
+
+int main() { return 0; }

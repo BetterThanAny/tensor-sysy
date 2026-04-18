@@ -1,0 +1,13 @@
+// W9 scheduler fixture: 128x128x128 matmul. The aligned + large_enough
+// + M*N <= 256^2 condition picks variant="tiled" in the schedule-cuda
+// pass. Used by cli_emit_lir_schedule_shows_variant ctest.
+const int M = 128;
+const int K = 128;
+const int N = 128;
+
+void matmul_layer(tensor<f32>[M, K] A, tensor<f32>[K, N] B) {
+    tensor<f32>[M, N] C = @matmul(A, B);
+    return;
+}
+
+int main() { return 0; }
