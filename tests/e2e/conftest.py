@@ -29,6 +29,8 @@ def run_backend(backend: str, tsy_file: Path) -> str:
     if proc.returncode != 0:
         if "requires tsy_runtime_cuda" in proc.stderr:
             pytest.skip(f"backend={backend} not built (no CUDA runtime)")
+        if "requires tsy_runtime_cpu" in proc.stderr:
+            pytest.skip(f"backend={backend} not built (no mini-llm-engine)")
         raise RuntimeError(
             f"tsc run-lir --backend={backend} failed with rc={proc.returncode}\n"
             f"stdout:\n{proc.stdout}\n"
