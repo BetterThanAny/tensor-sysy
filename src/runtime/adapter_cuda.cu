@@ -1,6 +1,7 @@
 #include "adapter_cuda.h"
 
 #include <cassert>
+#include "../lir/module_utils.h"
 #include <cstdio>
 #include <cstdlib>
 #include <mutex>
@@ -496,19 +497,10 @@ RunResult runFunctionCudaAdapter(const Function& f, DiagnosticEngine& diag) {
     return r;
 }
 
-const Function* pickFirstTensorFunction(const Module& m) {
-    for (const auto& f : m.funcs) {
-        if (f->name == "main") continue;
-        if (!f->params.empty()) return f.get();
-    }
-    if (!m.funcs.empty()) return m.funcs.front().get();
-    return nullptr;
-}
-
 }  // namespace
 
 RunResult runWithCudaAdapter(const Module& m, DiagnosticEngine& diag) {
-    const Function* f = pickFirstTensorFunction(m);
+    const Function* f = tsy::lir::pickFirstTensorFunction(m);
     if (!f) {
         diag.error({}, "cuda-adapter: module has no runnable function");
         RunResult r; r.ok = false; return r;

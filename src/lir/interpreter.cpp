@@ -1,4 +1,5 @@
 #include "interpreter.h"
+#include "module_utils.h"
 
 #include <algorithm>
 #include <cmath>
@@ -139,17 +140,6 @@ RunResult runFunctionImpl(const Function& f, DiagnosticEngine& diag) {
         r.buffers[f.params[i]].is_param = true;
     }
     return r;
-}
-
-const Function* pickFirstTensorFunction(const Module& m) {
-    // Prefer a non-main function with at least one tensor param; fall back to
-    // the first function in program order so run-lir always has something to do.
-    for (const auto& f : m.funcs) {
-        if (f->name == "main") continue;
-        if (!f->params.empty()) return f.get();
-    }
-    if (!m.funcs.empty()) return m.funcs.front().get();
-    return nullptr;
 }
 
 }  // namespace

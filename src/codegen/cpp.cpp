@@ -1,6 +1,7 @@
 #include "cpp.h"
 
 #include <sstream>
+#include "../lir/module_utils.h"
 #include <unordered_set>
 
 using namespace tsy::lir;
@@ -13,14 +14,6 @@ namespace {
 // C++ keywords, standard library symbols, or reserved names like `register`.
 std::string identFor(const Buffer& b) {
     return "buf_" + b.name;
-}
-
-const Function* pickFirstTensorFunction(const Module& m) {
-    for (const auto& f : m.funcs) {
-        if (f->name == "main") continue;
-        if (!f->params.empty()) return f.get();
-    }
-    return m.funcs.empty() ? nullptr : m.funcs.front().get();
 }
 
 const char* adapterSymbolFor(const std::string& primitive) {
@@ -70,7 +63,7 @@ bool emitCppModule(std::ostream& os, const Module& m,
                    const std::string& source_path) {
     writeHeader(os, source_path);
 
-    const Function* f = pickFirstTensorFunction(m);
+    const Function* f = tsy::lir::pickFirstTensorFunction(m);
     if (!f) {
         os << "int main() { return 0; }\n";
         return true;

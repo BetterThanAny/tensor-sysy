@@ -90,6 +90,7 @@ add_library(tsy_lir STATIC
     src/lir/printer.cpp
     src/lir/lowering.cpp
     src/lir/interpreter.cpp
+    src/lir/module_utils.cpp
 )
 
 target_include_directories(tsy_lir PUBLIC
