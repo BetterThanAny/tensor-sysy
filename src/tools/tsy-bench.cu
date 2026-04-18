@@ -14,12 +14,24 @@
 #include "../runtime/adapter_cuda.h"
 #include "../lir/interpreter.h"  // NamedTensor / fillDeterministic
 
+// W11 T7: pipeline headers for transformer_block end-to-end bench.
+#include "../frontend/parser_driver.h"   // tsy::parseFile / ParseResult
+#include "../frontend/diagnostics.h"     // tsy::DiagnosticEngine
+#include "../hir/lowering.h"             // tsy::hir::lowerAstToHir
+#include "../hir/ops.h"                  // tsy::hir::Module
+#include "../lir/ir.h"                   // tsy::lir::Module
+#include "../lir/lowering.h"             // tsy::lir::lowerHirToLir
+#include "../passes/pass_manager.h"      // tsy::passes::PassManager
+#include "../runtime/adapter_cpu.h"      // tsy::runtime::runWithCpuAdapter
+
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <cuda_runtime.h>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -144,6 +156,117 @@ int runMatmulBench(const Options& opts) {
     return 0;
 }
 
+// W11 T7: parse + HIR + LIR lowering with the default O0 pipeline,
+// mirroring tsc.cpp's parseAndRunPipeline + cmdRunLir preamble. All
+// diagnostics go through `diag` so the caller can flush on error.
+std::unique_ptr<tsy::lir::Module> loadTransformerBlockLir(
+        const std::string& tsy_path,
+        tsy::DiagnosticEngine& diag) {
+    auto r = tsy::parseFile(tsy_path);
+    if (!r.ok) {
+        r.diagnostics.print(std::cerr);
+        std::cerr << "tsy-bench: parse failed: " << tsy_path << "\n";
+        return nullptr;
+    }
+    auto hmod = tsy::hir::lowerAstToHir(*r.ast, r.diagnostics);
+    if (!hmod || r.diagnostics.hasErrors()) {
+        r.diagnostics.print(std::cerr);
+        std::cerr << "tsy-bench: HIR lowering failed: " << tsy_path << "\n";
+        return nullptr;
+    }
+    auto pm = tsy::passes::buildPipelineO0();  // no --disable-pass needed
+    pm.run(*hmod, r.diagnostics);
+    if (r.diagnostics.hasErrors()) {
+        r.diagnostics.print(std::cerr);
+        std::cerr << "tsy-bench: HIR pipeline failed: " << tsy_path << "\n";
+        return nullptr;
+    }
+    auto lmod = tsy::lir::lowerHirToLir(*hmod, r.diagnostics);
+    if (!lmod || r.diagnostics.hasErrors()) {
+        r.diagnostics.print(std::cerr);
+        std::cerr << "tsy-bench: LIR lowering failed: " << tsy_path << "\n";
+        return nullptr;
+    }
+    pm.runLir(*lmod, r.diagnostics);
+    if (r.diagnostics.hasErrors()) {
+        r.diagnostics.print(std::cerr);
+        std::cerr << "tsy-bench: LIR pipeline failed: " << tsy_path << "\n";
+        return nullptr;
+    }
+    for (const auto& d : r.diagnostics.diagnostics()) {
+        diag.report(d.level, d.loc, d.message);
+    }
+    return lmod;
+}
+
+// W11 T7: transformer_block end-to-end timing, 3 backends × 5 measured runs.
+int runTransformerBlockBench() {
+    constexpr int S = 4, D = 8, F = 16;
+    const std::string kTsyPath = "examples/transformer_block.tsy";
+
+    tsy::DiagnosticEngine diag;
+    auto lmod = loadTransformerBlockLir(kTsyPath, diag);
+    if (!lmod) {
+        std::cerr << "tsy-bench: failed to load " << kTsyPath
+                  << " (are you running from the repo root?)\n";
+        return 1;
+    }
+
+    std::cout << "primitive,M,K,N,variant,ms_median,gflops\n";
+
+    struct Backend { const char* name; };
+    const Backend backends[] = { {"native"}, {"cpu_adapter"}, {"cuda_adapter"} };
+
+    for (const auto& be : backends) {
+        const std::string name = be.name;
+
+        // 3 warmup runs — discard results.
+        for (int i = 0; i < 3; i++) {
+            tsy::lir::RunResult rr;
+            if (name == "native")            rr = tsy::lir::runFirstTensorFunction(*lmod, diag);
+            else if (name == "cpu_adapter")  rr = tsy::runtime::runWithCpuAdapter(*lmod, diag);
+            else /* cuda_adapter */          rr = tsy::runtime::runWithCudaAdapter(*lmod, diag);
+            if (!rr.ok || diag.hasErrors()) {
+                diag.print(std::cerr);
+                std::cerr << "tsy-bench: warmup failed for backend " << name << "\n";
+                return 1;
+            }
+        }
+        if (name == "cuda_adapter") cudaDeviceSynchronize();
+
+        // 5 measured runs.
+        std::vector<float> times;
+        for (int i = 0; i < 5; i++) {
+            float ms = 0.0f;
+            if (name == "cuda_adapter") {
+                cudaEvent_t t0, t1;
+                cudaEventCreate(&t0);
+                cudaEventCreate(&t1);
+                cudaEventRecord(t0);
+                (void)tsy::runtime::runWithCudaAdapter(*lmod, diag);
+                cudaEventRecord(t1);
+                cudaEventSynchronize(t1);
+                cudaEventElapsedTime(&ms, t0, t1);
+                cudaEventDestroy(t0);
+                cudaEventDestroy(t1);
+            } else {
+                auto t0 = std::chrono::steady_clock::now();
+                if (name == "native")           (void)tsy::lir::runFirstTensorFunction(*lmod, diag);
+                else /* cpu_adapter */          (void)tsy::runtime::runWithCpuAdapter(*lmod, diag);
+                auto t1 = std::chrono::steady_clock::now();
+                ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
+            }
+            times.push_back(ms);
+        }
+
+        float median = medianMs(times);
+        std::cout << "transformer_block," << S << "," << D << "," << F << ","
+                  << name << "," << median << ",0\n";
+    }
+
+    return 0;
+}
+
 int usage(const char* progname) {
     std::cerr << "usage: " << progname
               << " [--primitive matmul|transformer_block] [--smoke] "
@@ -171,8 +294,8 @@ int main(int argc, char** argv) {
     }
 
     if (primitive == "matmul") return runMatmulBench(opts);
-    // Task 7 will add: if (primitive == "transformer_block") return runTransformerBlockBench();
+    if (primitive == "transformer_block") return runTransformerBlockBench();
     std::cerr << "unknown --primitive: " << primitive
-              << " (valid: matmul)\n";
+              << " (valid: matmul, transformer_block)\n";
     return 2;
 }

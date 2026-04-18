@@ -292,9 +292,15 @@ tsy_add_cuda_example(matmul_cuda_demo examples/matmul_tiny_cuda.tsy)
 
 if(TSY_HAVE_RUNTIME_CUDA)
     # W9: CUDA-event precision matmul bench binary.
+    # W11 T7: also runs transformer_block end-to-end through the full pipeline,
+    # so it links frontend/hir/passes/lir + both runtime adapters (mirrors tsc).
     add_executable(tsy-bench src/tools/tsy-bench.cu)
     set_source_files_properties(src/tools/tsy-bench.cu PROPERTIES LANGUAGE CUDA)
-    target_link_libraries(tsy-bench PRIVATE tsy_runtime_cuda)
+    target_link_libraries(tsy-bench PRIVATE tsy_passes tsy_runtime_cuda)
+    if(TSY_HAVE_RUNTIME_CPU)
+        target_link_libraries(tsy-bench PRIVATE tsy_runtime_cpu)
+        target_compile_definitions(tsy-bench PRIVATE TSY_HAVE_RUNTIME_CPU=1)
+    endif()
     set_target_properties(tsy-bench PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
         CUDA_ARCHITECTURES 86)
