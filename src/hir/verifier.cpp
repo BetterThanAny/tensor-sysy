@@ -155,6 +155,9 @@ void verifyAdd(const Op& op, DiagnosticEngine& diag) {
     }
 }
 
+// NOTE: verifyUnary assumes the op preserves input shape element-wise.
+// Do NOT reuse for shape-changing unary ops (e.g. transpose, reduce).
+// Those must call their own verifier.
 void verifyUnary(const Op& op, DiagnosticEngine& diag, const char* name) {
     if (op.operands.size() != 1) {
         std::ostringstream oss;
