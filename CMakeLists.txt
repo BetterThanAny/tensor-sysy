@@ -275,6 +275,16 @@ endfunction()
 
 tsy_add_cuda_example(matmul_cuda_demo examples/matmul_tiny_cuda.tsy)
 
+if(TSY_HAVE_RUNTIME_CUDA)
+    # W9: CUDA-event precision matmul bench binary.
+    add_executable(tsy-bench src/tools/tsy-bench.cu)
+    set_source_files_properties(src/tools/tsy-bench.cu PROPERTIES LANGUAGE CUDA)
+    target_link_libraries(tsy-bench PRIVATE tsy_runtime_cuda)
+    set_target_properties(tsy-bench PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+        CUDA_ARCHITECTURES 86)
+endif()
+
 # --- tests ----------------------------------------------------------------
 
 enable_testing()
