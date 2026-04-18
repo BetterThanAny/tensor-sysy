@@ -94,10 +94,62 @@ void testMatmul(const std::string& label, int64_t M, int64_t K, int64_t N) {
     compareTensors(label, C_cpu, C_cuda);
 }
 
+void testAdd(const std::string& label,
+             const std::vector<int64_t>& dims) {
+    int64_t n = 1;
+    for (auto d : dims) n *= d;
+    auto A = makeTensor("A", dims, linspace(n, 0.0f, 0.1f));
+    auto B = makeTensor("B", dims, linspace(n, 1.0f, 0.2f));
+    auto C_cpu  = zeros("C", dims);
+    auto C_cuda = zeros("C", dims);
+    adapterAdd(A, B, C_cpu);
+    adapterAddCuda(A, B, C_cuda);
+    compareTensors(label, C_cpu, C_cuda);
+}
+
+void testSoftmax(const std::string& label,
+                 const std::vector<int64_t>& dims) {
+    int64_t n = 1;
+    for (auto d : dims) n *= d;
+    auto X = makeTensor("X", dims, linspace(n, -1.0f, 0.3f));
+    auto Y_cpu  = zeros("Y", dims);
+    auto Y_cuda = zeros("Y", dims);
+    adapterSoftmax(X, Y_cpu);
+    adapterSoftmaxCuda(X, Y_cuda);
+    compareTensors(label, Y_cpu, Y_cuda);
+}
+
+void testRMSNorm(const std::string& label,
+                 const std::vector<int64_t>& dims) {
+    int64_t n = 1;
+    for (auto d : dims) n *= d;
+    auto X = makeTensor("X", dims, linspace(n, 0.5f, 0.25f));
+    auto Y_cpu  = zeros("Y", dims);
+    auto Y_cuda = zeros("Y", dims);
+    adapterRMSNorm(X, Y_cpu);
+    adapterRMSNormCuda(X, Y_cuda);
+    compareTensors(label, Y_cpu, Y_cuda);
+}
+
 }  // namespace
 
 int main(int /*argc*/, char** /*argv*/) {
-    testMatmul("matmul/2x2x2", 2, 2, 2);
+    // MatMul — 5 shape classes (M, K, N)
+    testMatmul("matmul/square-8",    8,   8,  8);
+    testMatmul("matmul/tall-128x16", 128, 16, 8);
+    testMatmul("matmul/odd-7x13",    7,   13, 11);
+    testMatmul("matmul/1xK-row",     1,   32, 8);
+    testMatmul("matmul/Kx1-col",     8,   32, 1);
+
+    // Add / Softmax / RMSNorm — 3 shape classes
+    for (auto dims : std::vector<std::vector<int64_t>>{
+             {8, 8}, {7, 13}, {1, 32}}) {
+        std::string label = "shape-" + std::to_string(dims[0]) + "x"
+                                      + std::to_string(dims[1]);
+        testAdd    ("add/"     + label, dims);
+        testSoftmax("softmax/" + label, dims);
+        testRMSNorm("rmsnorm/" + label, dims);
+    }
 
     if (g_failures == 0) {
         std::cout << "adapter_cuda_cases: ALL PASS\n";
