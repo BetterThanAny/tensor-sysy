@@ -277,16 +277,99 @@ void adapterRMSNormCuda(const Tensor& x, Tensor& y) {
     CUDA_CHECK(cudaFree(dY));
 }
 
-// Executor added in Task 10.
-tsy::lir::RunResult runWithCudaAdapter(const tsy::lir::Module&,
-                                       tsy::DiagnosticEngine& diag) {
-    diag.error({}, "cuda-adapter executor not implemented (Task 10)");
-    RunResult r; r.ok = false; return r;
+namespace {
+
+RunResult runFunctionCudaAdapter(const Function& f, DiagnosticEngine& diag) {
+    RunResult r;
+    r.function_name = f.name;
+    r.buffers.reserve(f.buffers.size());
+    for (const auto& b : f.buffers) {
+        NamedTensor t;
+        t.name = b.name;
+        t.dims = b.dims;
+        t.data.assign(b.numElements(), 0.0f);
+        r.buffers.push_back(std::move(t));
+    }
+
+    for (size_t i = 0; i < f.params.size(); ++i) {
+        fillDeterministic(r.buffers[f.params[i]], static_cast<int>(i));
+    }
+
+    for (const auto& s : f.body) {
+        if (s.kind == StmtKind::Return) break;
+        if (s.kind != StmtKind::Call) continue;
+        if (s.result_buf < 0) {
+            diag.error(s.loc, "cuda-adapter: call has no result buffer");
+            r.ok = false;
+            continue;
+        }
+        auto& out = r.buffers[s.result_buf];
+
+        if (s.primitive == "matmul") {
+            if (s.operand_bufs.size() != 2) {
+                diag.error(s.loc, "cuda-adapter matmul: expected 2 operands");
+                r.ok = false; continue;
+            }
+            adapterMatMulCuda(r.buffers[s.operand_bufs[0]],
+                              r.buffers[s.operand_bufs[1]], out);
+        } else if (s.primitive == "add") {
+            if (s.operand_bufs.size() != 2) {
+                diag.error(s.loc, "cuda-adapter add: expected 2 operands");
+                r.ok = false; continue;
+            }
+            adapterAddCuda(r.buffers[s.operand_bufs[0]],
+                           r.buffers[s.operand_bufs[1]], out);
+        } else if (s.primitive == "softmax") {
+            if (s.operand_bufs.size() != 1) {
+                diag.error(s.loc, "cuda-adapter softmax: expected 1 operand");
+                r.ok = false; continue;
+            }
+            adapterSoftmaxCuda(r.buffers[s.operand_bufs[0]], out);
+        } else if (s.primitive == "rmsnorm") {
+            if (s.operand_bufs.size() != 1) {
+                diag.error(s.loc, "cuda-adapter rmsnorm: expected 1 operand");
+                r.ok = false; continue;
+            }
+            adapterRMSNormCuda(r.buffers[s.operand_bufs[0]], out);
+        } else {
+            diag.error(s.loc, "cuda-adapter: unsupported primitive '" +
+                                   s.primitive + "'");
+            r.ok = false;
+        }
+    }
+
+    for (size_t i = 0; i < f.params.size(); ++i) {
+        r.buffers[f.params[i]].is_param = true;
+    }
+    return r;
 }
-tsy::lir::RunResult runNamedWithCudaAdapter(const tsy::lir::Module&,
-                                            const std::string&,
-                                            tsy::DiagnosticEngine& diag) {
-    diag.error({}, "cuda-adapter executor not implemented (Task 10)");
+
+const Function* pickFirstTensorFunction(const Module& m) {
+    for (const auto& f : m.funcs) {
+        if (f->name == "main") continue;
+        if (!f->params.empty()) return f.get();
+    }
+    if (!m.funcs.empty()) return m.funcs.front().get();
+    return nullptr;
+}
+
+}  // namespace
+
+RunResult runWithCudaAdapter(const Module& m, DiagnosticEngine& diag) {
+    const Function* f = pickFirstTensorFunction(m);
+    if (!f) {
+        diag.error({}, "cuda-adapter: module has no runnable function");
+        RunResult r; r.ok = false; return r;
+    }
+    return runFunctionCudaAdapter(*f, diag);
+}
+
+RunResult runNamedWithCudaAdapter(const Module& m, const std::string& name,
+                                   DiagnosticEngine& diag) {
+    for (const auto& f : m.funcs) {
+        if (f->name == name) return runFunctionCudaAdapter(*f, diag);
+    }
+    diag.error({}, "cuda-adapter: function '" + name + "' not found");
     RunResult r; r.ok = false; return r;
 }
 

@@ -18,6 +18,10 @@
 #include "../runtime/adapter_cpu.h"
 #endif
 
+#if TSY_HAVE_RUNTIME_CUDA
+#include "../runtime/adapter_cuda.h"
+#endif
+
 namespace {
 
 const char kUsage[] =
@@ -43,6 +47,7 @@ const char kUsage[] =
     "run-lir backends:\n"
     "  --backend=native       (default) W4 naive in-tree kernels.\n"
     "  --backend=cpu-adapter  W6 mini-llm-engine/ops_cpu via runtime adapter.\n"
+    "  --backend=cuda-adapter W8 self-written FP32 CUDA kernels + cuBLAS.\n"
     "\n"
     "emit-cpp output:\n"
     "  -o <path>              Write generated C++ to path instead of stdout.\n";
@@ -202,6 +207,14 @@ int cmdRunLir(const Options& o) {
 #else
         std::cerr << "run-lir: --backend=cpu-adapter requires tsy_runtime_cpu, "
                      "which was not built. Check mini-llm-engine path at CMake time.\n";
+        return 1;
+#endif
+    } else if (o.backend == "cuda-adapter") {
+#if TSY_HAVE_RUNTIME_CUDA
+        result = tsy::runtime::runWithCudaAdapter(*lmod, diag);
+#else
+        std::cerr << "run-lir: --backend=cuda-adapter requires tsy_runtime_cuda, "
+                     "which was not built. Check CUDA toolchain at CMake time.\n";
         return 1;
 #endif
     } else if (o.backend == "native" || o.backend.empty()) {

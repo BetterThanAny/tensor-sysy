@@ -93,6 +93,14 @@ if(TARGET tsy_runtime_cuda)
 
     # (subsequent tasks append CLI + codegen tests here, outside the
     # inner tsy_runtime_cpu gate — they only need the CUDA runtime.)
+
+    add_test(NAME cli_cuda_adapter_run_matmul_tiny
+        COMMAND tsc run-lir --backend=cuda-adapter
+                ${CMAKE_SOURCE_DIR}/examples/run_matmul_tiny.tsy
+    )
+    set_tests_properties(cli_cuda_adapter_run_matmul_tiny PROPERTIES
+        PASS_REGULAR_EXPRESSION "local C .*0.0700.*0.0800"
+    )
 endif()
 
 # W5 CLI smoke: --opt=O1 and --disable-pass=dce round-trip.
