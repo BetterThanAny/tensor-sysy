@@ -128,6 +128,15 @@ if(TARGET tsy_runtime_cuda)
     set_tests_properties(codegen_emit_cu_contains_adapter_calls PROPERTIES
         PASS_REGULAR_EXPRESSION "tsy::runtime::adapterMatMulCuda"
     )
+
+    # W9: Python driver smoke — confirms tsy-bench runs + CSV is parseable.
+    add_test(NAME cli_bench_smoke
+        COMMAND python3 ${CMAKE_SOURCE_DIR}/benchmarks/run_shapes.py --smoke
+    )
+    set_tests_properties(cli_bench_smoke PROPERTIES
+        PASS_REGULAR_EXPRESSION "matmul.*256.*256.*256"
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
 endif()
 
 # W5 CLI smoke: --opt=O1 and --disable-pass=dce round-trip.
