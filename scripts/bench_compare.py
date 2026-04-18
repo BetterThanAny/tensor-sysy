@@ -17,7 +17,14 @@ import shutil
 import sys
 from pathlib import Path
 
-# (fail_ratio, warn_ratio) — current/baseline ratio crossing fail_ratio → FAIL
+# (fail_ratio, warn_ratio) — current/baseline ratio crossing fail_ratio → FAIL.
+# Calibrated against observed cross-run noise on RTX 3080 Laptop + WSL2:
+# only 1024^3 matmul stayed within 10% across ~10 captures under the same
+# power/thermal state. 512^3 cublas drifts 15-25% due to cublas kernel
+# heuristics; transformer_block cuda_adapter is bimodal (1.8-3ms typical,
+# occasional 5ms+ outliers). Sub-ms shapes are dominated by CUDA launch
+# overhead jitter (~20-50us). Only tracked (baseline) rows are gated;
+# tsy-bench's full sweep is kept for correctness + informational timing.
 THRESHOLDS = {
     "matmul":            (1.10, 1.05),
     "transformer_block": (1.15, 1.10),
@@ -54,16 +61,17 @@ def main() -> int:
     current  = load(args.current)
 
     fail_count = warn_count = imp_count = 0
-    all_keys = sorted(set(baseline) | set(current))
+    # Only compare rows tracked in baseline. tsy-bench may sweep more shapes
+    # than the regression gate tracks (e.g. tiny shapes kept for tiled-alignment
+    # correctness coverage but excluded from baseline because measurement
+    # noise dominates their <0.5ms median). Extra current rows are silently
+    # ignored — `cat /tmp/tsy_bench_current.csv` to inspect them.
+    tracked_keys = sorted(baseline.keys())
 
-    for key in all_keys:
+    for key in tracked_keys:
         prim, M, K, N, var = key
-        b = baseline.get(key)
+        b = baseline[key]
         c = current.get(key)
-        if b is None:
-            print(f"NEW      {prim:18s} {M:>5}x{K:>5}x{N:>5} {var:12s} "
-                  f"              current={c:.3f}ms")
-            continue
         if c is None:
             print(f"MISSING  {prim:18s} {M:>5}x{K:>5}x{N:>5} {var:12s} "
                   f"baseline={b:.3f}ms")
@@ -77,7 +85,7 @@ def main() -> int:
         elif status == "IMPROVED": imp_count += 1
 
     print(f"\nsummary: {fail_count} FAIL, {warn_count} WARN, {imp_count} IMPROVED, "
-          f"{len(all_keys) - fail_count - warn_count - imp_count} OK")
+          f"{len(tracked_keys) - fail_count - warn_count - imp_count} OK")
 
     if imp_count > 0 and not args.update_baseline:
         print("hint: confirmed improvements? re-run with --update-baseline")

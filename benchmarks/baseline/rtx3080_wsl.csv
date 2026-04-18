@@ -1,0 +1,4 @@
+primitive,M,K,N,variant,ms_median,gflops
+matmul,1024,1024,1024,naive,6.9577,308.649
+matmul,1024,1024,1024,tiled,4.91114,437.268
+matmul,1024,1024,1024,cublas,4.97181,431.932
