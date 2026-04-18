@@ -257,6 +257,7 @@ void adapterMatMulCuda(const Tensor& a, const Tensor& b, Tensor& c,
     }
 
     c.data.assign(static_cast<size_t>(M) * N, 0.0f);
+    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(c.data.data(), dC, bytesC, cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaFree(dA));
     CUDA_CHECK(cudaFree(dB));
@@ -281,6 +282,7 @@ void adapterAddCuda(const Tensor& a, const Tensor& b, Tensor& c) {
     CUDA_CHECK(cudaGetLastError());
 
     c.data.assign(static_cast<size_t>(n), 0.0f);
+    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(c.data.data(), dC, bytes, cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaFree(dA));
     CUDA_CHECK(cudaFree(dB));
@@ -353,6 +355,7 @@ void adapterSoftmaxCuda(const Tensor& x, Tensor& y) {
     CUDA_CHECK(cudaGetLastError());
 
     y.data.assign(n, 0.0f);
+    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(y.data.data(), dY, bytes, cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaFree(dX));
     CUDA_CHECK(cudaFree(dY));
@@ -422,6 +425,7 @@ void adapterRMSNormCuda(const Tensor& x, Tensor& y) {
     CUDA_CHECK(cudaGetLastError());
 
     y.data.assign(n, 0.0f);
+    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(y.data.data(), dY, bytes, cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaFree(dX));
     CUDA_CHECK(cudaFree(dY));
@@ -459,6 +463,7 @@ void adapterTransposeCuda(const Tensor& x, Tensor& c) {
     CUDA_CHECK(cudaGetLastError());
 
     c.data.assign(static_cast<size_t>(M) * N, 0.0f);
+    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(c.data.data(), dY, bytes, cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaFree(dX));
     CUDA_CHECK(cudaFree(dY));
@@ -479,6 +484,7 @@ void adapterReLUCuda(const Tensor& x, Tensor& c) {
     CUDA_CHECK(cudaGetLastError());
 
     c.data.assign(static_cast<size_t>(n), 0.0f);
+    CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(c.data.data(), dC, bytes, cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaFree(dA));
     CUDA_CHECK(cudaFree(dC));
