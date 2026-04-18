@@ -17,6 +17,8 @@ enum class OpKind {
     RMSNorm,
     View,       // W1 syntax not yet exposed; reserved.
     Permute,    // ditto.
+    Transpose,  // W10: 2-D transpose, result shape = [in.dim1, in.dim0].
+    ReLU,       // W10: elementwise relu, result shape = in.shape.
     FuncCall,   // non-builtin function call.
     Return,
     Unknown,    // fallback for unhandled AST shapes during lowering.

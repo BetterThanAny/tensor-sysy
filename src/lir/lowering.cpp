@@ -76,6 +76,8 @@ struct Lowerer {
                 case hir::OpKind::Add:
                 case hir::OpKind::Softmax:
                 case hir::OpKind::RMSNorm:
+                case hir::OpKind::Transpose:
+                case hir::OpKind::ReLU:
                     lowerBuiltinCall(*lf, vm, op);
                     break;
                 default: {

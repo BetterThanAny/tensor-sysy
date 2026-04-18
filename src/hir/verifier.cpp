@@ -178,6 +178,43 @@ void verifyUnary(const Op& op, DiagnosticEngine& diag, const char* name) {
     }
 }
 
+void verifyTranspose(const Op& op, DiagnosticEngine& diag) {
+    if (op.operands.size() != 1) {
+        std::ostringstream oss;
+        oss << "transpose expects 1 operand, got " << op.operands.size();
+        diag.error(op.loc, oss.str());
+        return;
+    }
+    const auto& a = *op.operands[0];
+    if (!requireTensor(a, diag, op.loc, "input", "transpose")) return;
+    if (!requireResolved(a, diag, op.loc, "transpose")) return;
+
+    if (a.type.shape.rank() != 2) {
+        std::ostringstream oss;
+        oss << "transpose expects a 2-D tensor, got rank "
+            << a.type.shape.rank();
+        diag.error(op.loc, oss.str());
+        return;
+    }
+    if (op.results.size() != 1) {
+        diag.error(op.loc, "transpose must produce exactly 1 result");
+        return;
+    }
+    const auto& r = *op.results[0];
+    if (!requireTensor(r, diag, op.loc, "result", "transpose")) return;
+    if (!requireResolved(r, diag, op.loc, "transpose result")) return;
+
+    Shape expected;
+    expected.dims.push_back(a.type.shape.dims[1]);
+    expected.dims.push_back(a.type.shape.dims[0]);
+    if (!shapesEqual(r.type.shape, expected)) {
+        std::ostringstream oss;
+        oss << "transpose result shape " << shapeAsString(r.type.shape)
+            << " does not match expected " << shapeAsString(expected);
+        diag.error(op.loc, oss.str());
+    }
+}
+
 void verifyUnknown(const Op& op, DiagnosticEngine& diag) {
     // Only surface a diagnostic when the unknown op carries a builtin-like
     // name (i.e. the user wrote @foo and we didn't recognise it). Reasons
@@ -202,9 +239,11 @@ void verifyModule(const Module& m, DiagnosticEngine& diag) {
             switch (op.kind) {
                 case OpKind::MatMul:  verifyMatMul(op, diag); break;
                 case OpKind::Add:     verifyAdd(op, diag); break;
-                case OpKind::Softmax: verifyUnary(op, diag, "softmax"); break;
-                case OpKind::RMSNorm: verifyUnary(op, diag, "rmsnorm"); break;
-                case OpKind::Unknown: verifyUnknown(op, diag); break;
+                case OpKind::Softmax:   verifyUnary(op, diag, "softmax"); break;
+                case OpKind::RMSNorm:   verifyUnary(op, diag, "rmsnorm"); break;
+                case OpKind::Transpose: verifyTranspose(op, diag);        break;
+                case OpKind::ReLU:      verifyUnary(op, diag, "relu");    break;
+                case OpKind::Unknown:   verifyUnknown(op, diag); break;
                 default:
                     break;
             }
