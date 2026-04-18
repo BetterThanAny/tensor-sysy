@@ -1,6 +1,18 @@
 cmake_minimum_required(VERSION 3.18)
 project(tensor-sysy LANGUAGES CXX)
 
+# W11: Python interpreter for pytest-driven e2e tests.
+# Prefer repo-local .venv (developer workflow), fall back to system Python3 (CI).
+if(EXISTS "${CMAKE_SOURCE_DIR}/.venv/bin/python")
+    set(TSY_PYTHON_EXECUTABLE "${CMAKE_SOURCE_DIR}/.venv/bin/python"
+        CACHE FILEPATH "Python interpreter used by pytest-driven tests")
+else()
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    set(TSY_PYTHON_EXECUTABLE "${Python3_EXECUTABLE}"
+        CACHE FILEPATH "Python interpreter used by pytest-driven tests")
+endif()
+message(STATUS "TSY_PYTHON_EXECUTABLE = ${TSY_PYTHON_EXECUTABLE}")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)

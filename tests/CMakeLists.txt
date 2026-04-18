@@ -265,9 +265,20 @@ set_tests_properties(cli_run_transformer_block_native PROPERTIES
     PASS_REGULAR_EXPRESSION "local out shape=\\[4,8\\]"
 )
 
+# W11: verify TSY_PYTHON_EXECUTABLE has numpy + pytest before registering e2e tests.
+execute_process(
+    COMMAND ${TSY_PYTHON_EXECUTABLE} -c "import numpy, pytest"
+    RESULT_VARIABLE _tsy_py_probe
+    OUTPUT_QUIET ERROR_QUIET)
+if(NOT _tsy_py_probe EQUAL 0)
+    message(FATAL_ERROR
+        "TSY_PYTHON_EXECUTABLE=${TSY_PYTHON_EXECUTABLE} lacks numpy/pytest.\n"
+        "  Fix: uv pip install --python ${TSY_PYTHON_EXECUTABLE} numpy pytest")
+endif()
+
 # W10: e2e pytest — compares 3 backends against numpy reference.
 add_test(NAME e2e_transformer_block_pytest
-    COMMAND ${CMAKE_SOURCE_DIR}/.venv/bin/python -m pytest
+    COMMAND ${TSY_PYTHON_EXECUTABLE} -m pytest
             -xvs ${CMAKE_SOURCE_DIR}/tests/e2e/test_transformer_block.py
 )
 set_tests_properties(e2e_transformer_block_pytest PROPERTIES
