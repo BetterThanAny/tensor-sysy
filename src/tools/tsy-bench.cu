@@ -215,7 +215,13 @@ int runTransformerBlockBench() {
     std::cout << "primitive,M,K,N,variant,ms_median,gflops\n";
 
     struct Backend { const char* name; };
-    const Backend backends[] = { {"native"}, {"cpu_adapter"}, {"cuda_adapter"} };
+    const Backend backends[] = {
+        {"native"},
+#if TSY_HAVE_RUNTIME_CPU
+        {"cpu_adapter"},
+#endif
+        {"cuda_adapter"},
+    };
 
     for (const auto& be : backends) {
         const std::string name = be.name;
@@ -224,7 +230,9 @@ int runTransformerBlockBench() {
         for (int i = 0; i < 3; i++) {
             tsy::lir::RunResult rr;
             if (name == "native")            rr = tsy::lir::runFirstTensorFunction(*lmod, diag);
+#if TSY_HAVE_RUNTIME_CPU
             else if (name == "cpu_adapter")  rr = tsy::runtime::runWithCpuAdapter(*lmod, diag);
+#endif
             else /* cuda_adapter */          rr = tsy::runtime::runWithCudaAdapter(*lmod, diag);
             if (!rr.ok || diag.hasErrors()) {
                 diag.print(std::cerr);
@@ -252,7 +260,9 @@ int runTransformerBlockBench() {
             } else {
                 auto t0 = std::chrono::steady_clock::now();
                 if (name == "native")           (void)tsy::lir::runFirstTensorFunction(*lmod, diag);
+#if TSY_HAVE_RUNTIME_CPU
                 else /* cpu_adapter */          (void)tsy::runtime::runWithCpuAdapter(*lmod, diag);
+#endif
                 auto t1 = std::chrono::steady_clock::now();
                 ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
             }
@@ -261,7 +271,7 @@ int runTransformerBlockBench() {
 
         float median = medianMs(times);
         std::cout << "transformer_block," << S << "," << D << "," << F << ","
-                  << name << "," << median << ",0\n";
+                  << name << "," << median << ",0.0\n";
     }
 
     return 0;
