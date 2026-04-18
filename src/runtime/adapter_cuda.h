@@ -20,9 +20,13 @@ namespace tsy::runtime {
 using Tensor = tsy::lir::NamedTensor;
 
 // MatMul: C[M,N] = A[M,K] @ B[K,N], FP32, row-major.
-// Internally: cuBLAS sgemm via the col-major trick
-//   row-major (A @ B) == col-major (B^T^T @ A^T) == col-major (B @ A^T)
-void adapterMatMulCuda(const Tensor& a, const Tensor& b, Tensor& c);
+// variant: "" (default) or "cublas" → cuBLAS sgemm (W8 path).
+//          "naive" → one-thread-per-output naive kernel.
+//          "tiled" → 128x128 register-tiled kernel; requires
+//                    M%128==0 && N%128==0 && K%8==0 — caller must
+//                    pre-check (the schedule-cuda pass does this).
+void adapterMatMulCuda(const Tensor& a, const Tensor& b, Tensor& c,
+                       const std::string& variant = "");
 
 // Elementwise add, same shape required.
 void adapterAddCuda(const Tensor& a, const Tensor& b, Tensor& c);

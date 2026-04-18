@@ -131,6 +131,18 @@ void testRMSNorm(const std::string& label,
     compareTensors(label, Y_cpu, Y_cuda);
 }
 
+void testMatmulVariant(const std::string& label,
+                        int64_t M, int64_t K, int64_t N,
+                        const std::string& variant) {
+    auto A = makeTensor("A", {M, K}, linspace(M * K, 0.0f, 0.1f));
+    auto B = makeTensor("B", {K, N}, linspace(K * N, 0.5f, 0.1f));
+    auto C_cpu  = zeros("C", {M, N});
+    auto C_cuda = zeros("C", {M, N});
+    adapterMatMul(A, B, C_cpu);
+    adapterMatMulCuda(A, B, C_cuda, variant);
+    compareTensors(label, C_cpu, C_cuda);
+}
+
 }  // namespace
 
 int main(int /*argc*/, char** /*argv*/) {
@@ -150,6 +162,15 @@ int main(int /*argc*/, char** /*argv*/) {
         testSoftmax("softmax/" + label, dims);
         testRMSNorm("rmsnorm/" + label, dims);
     }
+
+    // W9 per-variant parity.
+    // 64x64x64: exercises naive + cublas (tiled requires M%128==0).
+    // 128x128x128: exercises all three including tiled.
+    testMatmulVariant("matmul/64x64x64/naive",    64,  64,  64, "naive");
+    testMatmulVariant("matmul/64x64x64/cublas",   64,  64,  64, "cublas");
+    testMatmulVariant("matmul/128x128x128/naive", 128, 128, 128, "naive");
+    testMatmulVariant("matmul/128x128x128/tiled", 128, 128, 128, "tiled");
+    testMatmulVariant("matmul/128x128x128/cublas",128, 128, 128, "cublas");
 
     if (g_failures == 0) {
         std::cout << "adapter_cuda_cases: ALL PASS\n";

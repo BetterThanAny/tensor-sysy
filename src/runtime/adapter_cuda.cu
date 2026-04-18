@@ -63,6 +63,144 @@ const float* onesDeviceVector(int64_t inner) {
 
 }  // namespace
 
+// One thread computes one output element via a dot-product over K.
+// Launch: block(32,32), grid(ceil(N/32), ceil(M/32)).
+__global__ void matmulNaiveKernel(const float* __restrict__ A,
+                                   const float* __restrict__ B,
+                                   float* __restrict__ C,
+                                   int M, int N, int K) {
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= M || col >= N) return;
+    float sum = 0.0f;
+    for (int k = 0; k < K; k++) sum += A[row * K + k] * B[k * N + col];
+    C[row * N + col] = sum;
+}
+
+// Register-tiled GEMM — 128x128 output tile per block, 8x8 register tile
+// per thread, BK=8 k-strip. Ported from mini-llm-engine/cuda-kernels/gemm/
+// gemm.cu (gemm_register_tiled). Requires M%128==0 && N%128==0 && K%8==0.
+// Launch: block(16,16)=256 threads, grid(N/128, M/128).
+#define TSY_BM 128
+#define TSY_BN 128
+#define TSY_BK 8
+#define TSY_TM 8
+#define TSY_TN 8
+__global__ void matmulTiledKernel(const float* __restrict__ A,
+                                   const float* __restrict__ B,
+                                   float* __restrict__ C,
+                                   int M, int N, int K) {
+    const int tx  = threadIdx.x;
+    const int ty  = threadIdx.y;
+    const int tid = ty * (TSY_BN / TSY_TN) + tx;
+
+    const int bm = blockIdx.y * TSY_BM;
+    const int bn = blockIdx.x * TSY_BN;
+
+    __shared__ float As[TSY_BM][TSY_BK + 1];
+    __shared__ float Bs[TSY_BK][TSY_BN + 4];
+
+    float C_reg[TSY_TM][TSY_TN];
+    #pragma unroll
+    for (int i = 0; i < TSY_TM; i++)
+        #pragma unroll
+        for (int j = 0; j < TSY_TN; j++)
+            C_reg[i][j] = 0.f;
+
+    const int a_row  = tid / 2;
+    const int a_col4 = (tid % 2) * 4;
+    const int b_row  = tid / (TSY_BN / 4);
+    const int b_col4 = (tid % (TSY_BN / 4)) * 4;
+
+    for (int k_tile = 0; k_tile < K; k_tile += TSY_BK) {
+        {
+            const int gm = bm + a_row;
+            const int gk = k_tile + a_col4;
+            if (gm < M && gk + 3 < K) {
+                float4 a4 = *reinterpret_cast<const float4*>(A + gm * K + gk);
+                As[a_row][a_col4 + 0] = a4.x;
+                As[a_row][a_col4 + 1] = a4.y;
+                As[a_row][a_col4 + 2] = a4.z;
+                As[a_row][a_col4 + 3] = a4.w;
+            } else {
+                #pragma unroll
+                for (int dk = 0; dk < 4; dk++) {
+                    int k = gk + dk, m = gm;
+                    As[a_row][a_col4 + dk] = (m < M && k < K) ? A[m * K + k] : 0.f;
+                }
+            }
+        }
+        {
+            const int gk = k_tile + b_row;
+            const int gn = bn + b_col4;
+            if (gk < K && gn + 3 < N) {
+                float4 b4 = *reinterpret_cast<const float4*>(B + gk * N + gn);
+                Bs[b_row][b_col4 + 0] = b4.x;
+                Bs[b_row][b_col4 + 1] = b4.y;
+                Bs[b_row][b_col4 + 2] = b4.z;
+                Bs[b_row][b_col4 + 3] = b4.w;
+            } else {
+                #pragma unroll
+                for (int dn = 0; dn < 4; dn++) {
+                    int k = gk, n = gn + dn;
+                    Bs[b_row][b_col4 + dn] = (k < K && n < N) ? B[k * N + n] : 0.f;
+                }
+            }
+        }
+        __syncthreads();
+
+        #pragma unroll
+        for (int k = 0; k < TSY_BK; k++) {
+            float a_reg[TSY_TM], b_reg[TSY_TN];
+            #pragma unroll
+            for (int tm = 0; tm < TSY_TM; tm++)
+                a_reg[tm] = As[ty * TSY_TM + tm][k];
+            #pragma unroll
+            for (int tn = 0; tn < TSY_TN; tn++)
+                b_reg[tn] = Bs[k][tx * TSY_TN + tn];
+            #pragma unroll
+            for (int tm = 0; tm < TSY_TM; tm++)
+                #pragma unroll
+                for (int tn = 0; tn < TSY_TN; tn++)
+                    C_reg[tm][tn] += a_reg[tm] * b_reg[tn];
+        }
+        __syncthreads();
+    }
+
+    #pragma unroll
+    for (int tm = 0; tm < TSY_TM; tm++) {
+        const int gm = bm + ty * TSY_TM + tm;
+        if (gm >= M) continue;
+        {
+            const int gn = bn + tx * TSY_TN;
+            if (gn + 3 < N) {
+                float4 c4 = {C_reg[tm][0], C_reg[tm][1],
+                             C_reg[tm][2], C_reg[tm][3]};
+                *reinterpret_cast<float4*>(C + gm * N + gn) = c4;
+            } else {
+                for (int i = 0; i < 4 && gn + i < N; i++)
+                    C[gm * N + gn + i] = C_reg[tm][i];
+            }
+        }
+        {
+            const int gn = bn + tx * TSY_TN + 4;
+            if (gn + 3 < N) {
+                float4 c4 = {C_reg[tm][4], C_reg[tm][5],
+                             C_reg[tm][6], C_reg[tm][7]};
+                *reinterpret_cast<float4*>(C + gm * N + gn) = c4;
+            } else {
+                for (int i = 0; i < 4 && gn + i < N; i++)
+                    C[gm * N + gn + i] = C_reg[tm][4 + i];
+            }
+        }
+    }
+}
+#undef TSY_BM
+#undef TSY_BN
+#undef TSY_BK
+#undef TSY_TM
+#undef TSY_TN
+
 __global__ void addKernel(const float* __restrict__ a,
                            const float* __restrict__ b,
                            float* __restrict__ c,
@@ -71,11 +209,8 @@ __global__ void addKernel(const float* __restrict__ a,
     if (i < n) c[i] = a[i] + b[i];
 }
 
-// C[M,N] = A[M,K] @ B[K,N] (row-major, FP32).
-// cuBLAS is col-major; use the identity
-//   row-major (A @ B) == col-major (B @ A)  (since col-major M is row-major M^T)
-// so call sgemm(OP_N, OP_N, N, M, K, B, A, C).
-void adapterMatMulCuda(const Tensor& a, const Tensor& b, Tensor& c) {
+void adapterMatMulCuda(const Tensor& a, const Tensor& b, Tensor& c,
+                       const std::string& variant) {
     assert(a.dims.size() == 2 && b.dims.size() == 2 && c.dims.size() == 2);
     const int M = static_cast<int>(a.dims[0]);
     const int K = static_cast<int>(a.dims[1]);
@@ -94,20 +229,34 @@ void adapterMatMulCuda(const Tensor& a, const Tensor& b, Tensor& c) {
     CUDA_CHECK(cudaMemcpy(dA, a.data.data(), bytesA, cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(dB, b.data.data(), bytesB, cudaMemcpyHostToDevice));
 
-    const float alpha = 1.0f, beta = 0.0f;
-    CUBLAS_CHECK(cublasSgemm(
-        getCublasHandle(),
-        CUBLAS_OP_N, CUBLAS_OP_N,
-        N, M, K,
-        &alpha,
-        dB, N,       // leading dim of B in col-major view is N
-        dA, K,       // leading dim of A in col-major view is K
-        &beta,
-        dC, N));
+    if (variant == "naive") {
+        dim3 block(32, 32);
+        dim3 grid((N + 31) / 32, (M + 31) / 32);
+        matmulNaiveKernel<<<grid, block>>>(dA, dB, dC, M, N, K);
+        CUDA_CHECK(cudaGetLastError());
+    } else if (variant == "tiled") {
+        assert(M % 128 == 0 && N % 128 == 0 && K % 8 == 0 &&
+               "tiled variant requires M%128==0 && N%128==0 && K%8==0");
+        dim3 block(16, 16);
+        dim3 grid(N / 128, M / 128);
+        matmulTiledKernel<<<grid, block>>>(dA, dB, dC, M, N, K);
+        CUDA_CHECK(cudaGetLastError());
+    } else {
+        // "" or "cublas": W8 path.
+        const float alpha = 1.0f, beta = 0.0f;
+        CUBLAS_CHECK(cublasSgemm(
+            getCublasHandle(),
+            CUBLAS_OP_N, CUBLAS_OP_N,
+            N, M, K,
+            &alpha,
+            dB, N,
+            dA, K,
+            &beta,
+            dC, N));
+    }
 
     c.data.assign(static_cast<size_t>(M) * N, 0.0f);
     CUDA_CHECK(cudaMemcpy(c.data.data(), dC, bytesC, cudaMemcpyDeviceToHost));
-
     CUDA_CHECK(cudaFree(dA));
     CUDA_CHECK(cudaFree(dB));
     CUDA_CHECK(cudaFree(dC));
@@ -310,8 +459,11 @@ RunResult runFunctionCudaAdapter(const Function& f, DiagnosticEngine& diag) {
                 diag.error(s.loc, "cuda-adapter matmul: expected 2 operands");
                 r.ok = false; continue;
             }
+            std::string variant;
+            auto it = s.attrs.find("variant");
+            if (it != s.attrs.end()) variant = it->second;
             adapterMatMulCuda(r.buffers[s.operand_bufs[0]],
-                              r.buffers[s.operand_bufs[1]], out);
+                              r.buffers[s.operand_bufs[1]], out, variant);
         } else if (s.primitive == "add") {
             if (s.operand_bufs.size() != 2) {
                 diag.error(s.loc, "cuda-adapter add: expected 2 operands");
