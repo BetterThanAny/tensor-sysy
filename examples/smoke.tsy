@@ -1,0 +1,15 @@
+// W0 smoke: a minimal SysY program the frontend must parse.
+int add(int a, int b) {
+    return a + b;
+}
+
+int main() {
+    int x = 3;
+    int y = 4;
+    int z = add(x, y);
+    if (z > 0) {
+        return z;
+    } else {
+        return 0;
+    }
+}

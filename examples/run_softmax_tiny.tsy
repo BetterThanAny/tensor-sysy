@@ -1,0 +1,10 @@
+// W4 run-lir: softmax along the innermost dim on a 1x4 tensor.
+const int M = 1;
+const int N = 4;
+
+void softmax_layer(tensor<f32>[M, N] X) {
+    tensor<f32>[M, N] Y = @softmax(X);
+    return;
+}
+
+int main() { return 0; }

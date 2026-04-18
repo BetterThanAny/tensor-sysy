@@ -1,0 +1,11 @@
+// W3 diagnostic: add requires identical shapes; lhs [M, N] vs rhs [N, M].
+// Verifier should report an error on line 8.
+const int M = 3;
+const int N = 5;
+
+void residual(tensor<f32>[M, N] A, tensor<f32>[N, M] B) {
+    tensor<f32>[M, N] C = @add(A, B);
+    return;
+}
+
+int main() { return 0; }

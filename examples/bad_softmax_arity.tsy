@@ -1,0 +1,11 @@
+// W3 diagnostic: softmax is unary; calling with two operands must fail.
+// Verifier should report an error on line 7.
+const int M = 4;
+const int N = 8;
+
+void attn(tensor<f32>[M, N] A, tensor<f32>[M, N] B) {
+    tensor<f32>[M, N] C = @softmax(A, B);
+    return;
+}
+
+int main() { return 0; }

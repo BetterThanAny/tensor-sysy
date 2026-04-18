@@ -1,0 +1,10 @@
+// W3 diagnostic: @gelu is not one of the recognised W1 builtins.
+// Verifier should error on line 6 with the unknown name.
+const int M = 4;
+
+void block(tensor<f32>[M, M] X) {
+    tensor<f32>[M, M] Y = @gelu(X);
+    return;
+}
+
+int main() { return 0; }

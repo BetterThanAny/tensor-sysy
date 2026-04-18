@@ -1,0 +1,16 @@
+// W1: exercises all four builtins (@matmul, @add, @softmax, @rmsnorm) in one
+// parse pass. Semantic validation (shape, dtype, arity) lands in W3.
+const int M = 4;
+const int N = 4;
+
+void mlp_block(tensor<f32>[M, N] A, tensor<f32>[M, N] B) {
+    tensor<f32>[M, N] sum    = @add(A, B);
+    tensor<f32>[M, N] scaled = @matmul(A, B);
+    tensor<f32>[M, N] probs  = @softmax(scaled);
+    tensor<f32>[M, N] normed = @rmsnorm(probs);
+    return;
+}
+
+int main() {
+    return 0;
+}

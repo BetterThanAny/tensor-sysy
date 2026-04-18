@@ -1,0 +1,6 @@
+// W1 diagnostic: tensor type must supply a dtype between '<' and '>'.
+// Parser should report an error on line 3.
+int main() {
+    tensor<>[4, 4] X;
+    return 0;
+}

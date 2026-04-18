@@ -1,0 +1,14 @@
+// W1: smallest tensor program the parser must accept.
+// A single matmul producing C = A @ B with static shapes.
+const int M = 8;
+const int K = 16;
+const int N = 4;
+
+void matmul_layer(tensor<f32>[M, K] A, tensor<f32>[K, N] B) {
+    tensor<f32>[M, N] C = @matmul(A, B);
+    return;
+}
+
+int main() {
+    return 0;
+}

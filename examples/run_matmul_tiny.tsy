@@ -1,0 +1,16 @@
+// W4 run-lir smoke: 2x2 matmul with hand-verifiable outputs when inputs
+// follow the interpreter's deterministic fill (buf_idx*0.5 + elem_idx*0.1).
+//
+// A = [[0.0, 0.1], [0.2, 0.3]]   (param 0)
+// B = [[0.5, 0.6], [0.7, 0.8]]   (param 1)
+// C = A @ B = [[0.07, 0.08], [0.31, 0.36]]
+const int M = 2;
+const int K = 2;
+const int N = 2;
+
+void matmul_layer(tensor<f32>[M, K] A, tensor<f32>[K, N] B) {
+    tensor<f32>[M, N] C = @matmul(A, B);
+    return;
+}
+
+int main() { return 0; }

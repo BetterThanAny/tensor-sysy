@@ -1,0 +1,6 @@
+// W1 diagnostic: @name must be followed by an argument list.
+// Parser should report an error on line 3.
+int main() {
+    int x = @matmul;
+    return x;
+}

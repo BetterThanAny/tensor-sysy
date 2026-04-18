@@ -1,0 +1,12 @@
+// W5 DCE fixture: matmul result `C` is computed but never observed before
+// the function returns, so DCE must remove the matmul op.
+const int M = 4;
+const int K = 8;
+const int N = 4;
+
+void dead_block(tensor<f32>[M, K] A, tensor<f32>[K, N] B) {
+    tensor<f32>[M, N] C = @matmul(A, B);
+    return;
+}
+
+int main() { return 0; }

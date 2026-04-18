@@ -1,0 +1,9 @@
+// W3 diagnostic: dim `M` is not declared as a const int; verifier must
+// require fully-resolved shapes. Error should point at the function that
+// uses the unresolved param.
+void block(tensor<f32>[M, M] X) {
+    tensor<f32>[M, M] Y = @softmax(X);
+    return;
+}
+
+int main() { return 0; }

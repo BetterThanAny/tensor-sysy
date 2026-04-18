@@ -1,0 +1,30 @@
+// W7 MLP E2E: two linear layers with bias + softmax output. Shapes stay
+// small so the codegen binary's output can be eyeballed and also compared
+// programmatically against the in-process adapter run.
+//
+// Layer 1: H = softmax( add( matmul(X, W1), b1 ) )  on  [B, D2]
+// Layer 2: Y = softmax( add( matmul(H, W2), b2 ) )  on  [B, D3]
+//
+// TensorSysY currently has no broadcasting, so biases are the same shape
+// as their corresponding post-matmul tensor — mirrors what the codegen
+// would produce after W8's broadcast lowering adds that.
+const int B  = 2;
+const int D1 = 3;
+const int D2 = 4;
+const int D3 = 2;
+
+void mlp_forward(tensor<f32>[B, D1]  X,
+                 tensor<f32>[D1, D2] W1,
+                 tensor<f32>[B, D2]  b1,
+                 tensor<f32>[D2, D3] W2,
+                 tensor<f32>[B, D3]  b2) {
+    tensor<f32>[B, D2] h1   = @matmul(X, W1);
+    tensor<f32>[B, D2] h1b  = @add(h1, b1);
+    tensor<f32>[B, D2] h1s  = @softmax(h1b);
+    tensor<f32>[B, D3] h2   = @matmul(h1s, W2);
+    tensor<f32>[B, D3] h2b  = @add(h2, b2);
+    tensor<f32>[B, D3] y    = @softmax(h2b);
+    return;
+}
+
+int main() { return 0; }

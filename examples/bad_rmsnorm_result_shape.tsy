@@ -1,0 +1,12 @@
+// W3 diagnostic: rmsnorm preserves shape; result declared [M, K] but input is
+// [M, N]. Verifier should error on line 8 (result vs input mismatch).
+const int M = 2;
+const int N = 4;
+const int K = 6;
+
+void block(tensor<f32>[M, N] X) {
+    tensor<f32>[M, K] Y = @rmsnorm(X);
+    return;
+}
+
+int main() { return 0; }

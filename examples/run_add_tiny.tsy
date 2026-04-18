@@ -1,0 +1,11 @@
+// W4 run-lir: elementwise add on 1x4. With deterministic inputs:
+// A = [0.0, 0.1, 0.2, 0.3], B = [0.5, 0.6, 0.7, 0.8]; C = A + B.
+const int M = 1;
+const int N = 4;
+
+void add_layer(tensor<f32>[M, N] A, tensor<f32>[M, N] B) {
+    tensor<f32>[M, N] C = @add(A, B);
+    return;
+}
+
+int main() { return 0; }
