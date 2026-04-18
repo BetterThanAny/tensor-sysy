@@ -102,6 +102,7 @@ target_compile_options(tsy_lir PRIVATE -Wall -Wextra)
 
 add_library(tsy_codegen STATIC
     src/codegen/cpp.cpp
+    src/codegen/cuda.cpp
 )
 
 target_include_directories(tsy_codegen PUBLIC
@@ -244,6 +245,33 @@ function(tsy_add_example NAME TSY_FILE)
 endfunction()
 
 tsy_add_example(mlp examples/mlp.tsy)
+
+# --- W8: helper to compile a .tsy example into a CUDA host binary --------
+function(tsy_add_cuda_example NAME TSY_FILE)
+    if(NOT TSY_HAVE_RUNTIME_CUDA)
+        message(STATUS "tsy_add_cuda_example(${NAME}): skipped (no CUDA).")
+        return()
+    endif()
+    set(_src "${CMAKE_CURRENT_SOURCE_DIR}/${TSY_FILE}")
+    set(_gen "${CMAKE_CURRENT_BINARY_DIR}/gen/${NAME}.cu")
+    add_custom_command(
+        OUTPUT ${_gen}
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                ${CMAKE_CURRENT_BINARY_DIR}/gen
+        COMMAND $<TARGET_FILE:tsc> emit-cu ${_src} -o ${_gen}
+        DEPENDS tsc ${_src}
+        COMMENT "tsc emit-cu ${TSY_FILE} -> gen/${NAME}.cu"
+        VERBATIM
+    )
+    add_executable(${NAME} ${_gen})
+    set_source_files_properties(${_gen} PROPERTIES LANGUAGE CUDA)
+    target_link_libraries(${NAME} PRIVATE tsy_runtime_cuda)
+    set_target_properties(${NAME} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/out"
+        CUDA_ARCHITECTURES 86)
+endfunction()
+
+tsy_add_cuda_example(matmul_cuda_demo examples/matmul_tiny_cuda.tsy)
 
 # --- tests ----------------------------------------------------------------
 

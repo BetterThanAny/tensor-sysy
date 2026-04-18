@@ -101,6 +101,24 @@ if(TARGET tsy_runtime_cuda)
     set_tests_properties(cli_cuda_adapter_run_matmul_tiny PROPERTIES
         PASS_REGULAR_EXPRESSION "local C .*0.0700.*0.0800"
     )
+
+    # Compile smoke: the generated matmul_cuda_demo must link and produce
+    # the expected 2x2x2 output when run.
+    add_test(NAME codegen_cuda_matmul_binary_runs
+        COMMAND $<TARGET_FILE:matmul_cuda_demo>
+    )
+    set_tests_properties(codegen_cuda_matmul_binary_runs PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "function: matmul_layer.*local C shape=\\[2,2\\].*0\\.0700.*0\\.0800"
+    )
+
+    # CLI-level: emit-cu must produce source that references the adapter.
+    add_test(NAME codegen_emit_cu_contains_adapter_calls
+        COMMAND tsc emit-cu ${CMAKE_SOURCE_DIR}/examples/matmul_tiny_cuda.tsy
+    )
+    set_tests_properties(codegen_emit_cu_contains_adapter_calls PROPERTIES
+        PASS_REGULAR_EXPRESSION "tsy::runtime::adapterMatMulCuda"
+    )
 endif()
 
 # W5 CLI smoke: --opt=O1 and --disable-pass=dce round-trip.

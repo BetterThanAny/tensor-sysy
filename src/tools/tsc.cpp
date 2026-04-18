@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "../codegen/cpp.h"
+#include "../codegen/cuda.h"
 #include "../hir/lowering.h"
 #include "../hir/printer.h"
 #include "../hir/verifier.h"
@@ -36,6 +37,7 @@ const char kUsage[] =
     "  emit-hir  Parse, lower to HIR, run passes, print the MLIR-style dump.\n"
     "  emit-lir  Parse, lower to HIR+LIR, print the LIR dump.\n"
     "  emit-cpp  Generate a self-contained C++ host binary source.\n"
+    "  emit-cu   Generate a self-contained CUDA .cu host binary source.\n"
     "  run-lir   Parse, lower, execute LIR with deterministic inputs.\n"
     "  --help    Show this message.\n"
     "\n"
@@ -176,6 +178,31 @@ int cmdEmitCpp(const Options& o) {
     return 0;
 }
 
+int cmdEmitCu(const Options& o) {
+    tsy::DiagnosticEngine diag;
+    auto hmod = parseAndRunPipeline(o, diag);
+    if (!hmod) return 1;
+    auto lmod = tsy::lir::lowerHirToLir(*hmod, diag);
+    if (!lmod || diag.hasErrors()) {
+        diag.print(std::cerr);
+        std::cerr << "lir lowering failed: " << o.path << "\n";
+        return 1;
+    }
+
+    std::ostream* out = &std::cout;
+    std::ofstream ofs;
+    if (!o.output_path.empty()) {
+        ofs.open(o.output_path);
+        if (!ofs) {
+            std::cerr << "emit-cu: cannot write to '" << o.output_path << "'\n";
+            return 1;
+        }
+        out = &ofs;
+    }
+    tsy::codegen::emitCudaModule(*out, *lmod, o.path);
+    return 0;
+}
+
 int cmdEmitLir(const Options& o) {
     tsy::DiagnosticEngine diag;
     auto hmod = parseAndRunPipeline(o, diag);
@@ -261,6 +288,7 @@ int main(int argc, char** argv) {
     if (cmd == "emit-hir") return cmdEmitHir(opts);
     if (cmd == "emit-lir") return cmdEmitLir(opts);
     if (cmd == "emit-cpp") return cmdEmitCpp(opts);
+    if (cmd == "emit-cu") return cmdEmitCu(opts);
     if (cmd == "run-lir") return cmdRunLir(opts);
 
     std::cerr << "tsc: unknown command '" << cmd << "'\n\n" << kUsage;
