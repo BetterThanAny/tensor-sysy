@@ -264,3 +264,12 @@ add_test(NAME cli_run_transformer_block_native
 set_tests_properties(cli_run_transformer_block_native PROPERTIES
     PASS_REGULAR_EXPRESSION "local out shape=\\[4,8\\]"
 )
+
+# W10: e2e pytest — compares 3 backends against numpy reference.
+add_test(NAME e2e_transformer_block_pytest
+    COMMAND ${CMAKE_SOURCE_DIR}/.venv/bin/python -m pytest
+            -xvs ${CMAKE_SOURCE_DIR}/tests/e2e/test_transformer_block.py
+)
+set_tests_properties(e2e_transformer_block_pytest PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)

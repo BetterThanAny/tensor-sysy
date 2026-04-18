@@ -378,5 +378,7 @@ tests/golden/matmul_basic/
 | 工具 | 方式 | 时间 | 原因 | 卸载 |
 |---|---|---|---|---|
 | `cmake` 4.3.1 | `brew install cmake` | 2026-04-18 W0 | W0 验收命令 `cmake -S . -B build` 需要；`sysy-compiler` 原来用 Makefile，TensorSysY 切换到 CMake 是为了统一 flex/bison 生成 + 未来链接 `mini-llm-engine` | `brew uninstall cmake` |
+| numpy 2.4.4 | `uv pip install --python .venv/bin/python numpy` | 2026-04-18 W10 | e2e transformer_block 的 numpy 参考实现（对拍 3 个 backend） | `rm -rf .venv` |
+| pytest 9.0.3 | `uv pip install --python .venv/bin/python pytest` | 2026-04-18 W10 | e2e 测试驱动（ctest 通过 `.venv/bin/python -m pytest` 调用） | `rm -rf .venv` |
 
 后续（W2+）如果还需要额外依赖（gtest、LLVM、CUDA toolkit 等），继续往这张表里追加，不要散落在其他地方。
