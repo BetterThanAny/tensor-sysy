@@ -19,7 +19,7 @@ onto `mini-llm-engine`'s CPU and CUDA kernels.
 - ✅ CI + local bench gate (W11): **32/32** local ctest (CPU + CUDA),
   **~20/20** CPU-only ctest in GHA, `scripts/bench_local.sh` gates three
   1024³ matmul variants against a recorded baseline.
-- ⏳ W12 (this week): docs pass — see [`docs/`](docs/) below.
+- ✅ W12 (final stage): docs pass — see [`docs/`](docs/) below.
 
 Full roadmap: [PLAN.md](PLAN.md).
 
