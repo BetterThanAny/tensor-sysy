@@ -72,7 +72,7 @@ LIR
 | **W8** | CUDA Adapter + 单算子 Codegen | `runtime/adapter_cuda.*`，复用 `ops_cuda.*` 跑单算子 | `tsc examples/matmul.tsy --target cuda ...` | CPU/GPU 容差对拍、单算子编译运行 |
 | **W9** | CUDA 调度和 layout lowering | 初版 scheduler、layout lowering、shape 查表策略 | `python benchmarks/run_shapes.py` | 5 类 shape 数值对拍、调度覆盖、odd shape |
 | **W10** | Transformer Block E2E | `examples/transformer_block.tsy`，attention + ffn 跑通 | `pytest tests/e2e/test_transformer_block.py` | vs PyTorch、vs mini-llm-engine 子路径 |
-| **W11** | CI + Benchmark | CPU CI、可选 GPU 手工脚本/云端脚本、性能基线文档 | GitHub Actions 通过 | 稳定性、回归阈值、中位数策略 |
+| **W11** ✅ 2026-04-18 | CI + Benchmark | GHA CPU CI、本地 GPU bench 脚本、1024³ matmul baseline + bench_compare | GitHub Actions + `bash scripts/bench_local.sh` 0 FAIL | 稳定性、回归阈值、中位数策略 |
 | **W12** | 收口 | README、架构图、博客、demo | 文档可复现 | 文档命令全跑通 |
 
 ---
@@ -341,6 +341,36 @@ tests/golden/matmul_basic/
 2. CUDA 输出与 CPU 输出在容差内
 3. 对拍 PyTorch 误差合格
 4. benchmark 至少覆盖 5 种 shape
+
+### W11 成功标准（2026-04-18 已达成）
+下面 6 条同时满足，才算"自动化质量门槛建立"：
+
+1. `.github/workflows/ci.yml` 绿 —— 每次 push/PR 触发 CPU-path ctest（~20/20）
+2. 本地全 ctest 32/32 通过（含 CUDA）
+3. `bash scripts/bench_local.sh` 0 FAIL（只 gate 1024³ matmul 三行）
+4. `benchmarks/baseline/rtx3080_wsl.csv` 入库，`docs/benchmarks/baseline.md` 可独立复现
+5. W10 三条 reviewer follow-up 全部落地（TSY_PYTHON_EXECUTABLE / CUDA sync / verifyUnary 注释）
+6. 回归阈值政策与物理噪声对齐（spec 原 18 行 baseline 被证伪后收窄到 3 行 1024³，有据可查）
+
+### W11 验收命令
+
+```bash
+cd /home/xs/tsy-wsl-export/tensor-sysy
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+ctest --test-dir build --output-on-failure        # 32/32
+
+# CI 等价（模拟 GHA runner —— 需要 .venv 先备份）
+mv .venv .venv.bak
+cmake -S . -B build-cpu -DCMAKE_BUILD_TYPE=Release
+cmake --build build-cpu -j
+(cd build-cpu && ctest --output-on-failure)        # ~20/20 CPU-path
+mv .venv.bak .venv
+rm -rf build-cpu
+
+bash scripts/bench_local.sh                        # 0 FAIL
+python3 benchmarks/run_shapes.py --check-scheduler # ≥1.20x tiled/naive
+```
 
 ---
 
