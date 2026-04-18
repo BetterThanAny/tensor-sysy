@@ -72,13 +72,15 @@ add_library(tsy_passes STATIC
     src/passes/verify.cpp
     src/passes/const_fold.cpp
     src/passes/dce.cpp
+    src/passes/layout_lowering.cpp
+    src/passes/schedule_cuda.cpp
 )
 
 target_include_directories(tsy_passes PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/passes
 )
 
-target_link_libraries(tsy_passes PUBLIC tsy_hir)
+target_link_libraries(tsy_passes PUBLIC tsy_hir tsy_lir)
 
 target_compile_options(tsy_passes PRIVATE -Wall -Wextra)
 

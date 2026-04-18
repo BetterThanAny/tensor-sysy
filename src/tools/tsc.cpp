@@ -119,8 +119,10 @@ int cmdDumpAst(const std::string& path) {
 // Parse + lower + run the requested pipeline. Shared preamble for
 // emit-hir / emit-lir / run-lir. Returns null on any failure; diagnostics
 // are already flushed to stderr before returning.
-std::unique_ptr<tsy::hir::Module> parseAndRunPipeline(const Options& o,
-                                                      tsy::DiagnosticEngine& diag) {
+std::unique_ptr<tsy::hir::Module> parseAndRunPipeline(
+        const Options& o,
+        tsy::DiagnosticEngine& diag,
+        tsy::passes::PassManager* out_pm = nullptr) {
     auto r = tsy::parseFile(o.path);
     if (!r.ok) {
         r.diagnostics.print(std::cerr);
@@ -142,6 +144,7 @@ std::unique_ptr<tsy::hir::Module> parseAndRunPipeline(const Options& o,
         std::cerr << "pipeline failed: " << o.path << "\n";
         return nullptr;
     }
+    if (out_pm) *out_pm = std::move(pm);
     return mod;
 }
 
@@ -155,12 +158,19 @@ int cmdEmitHir(const Options& o) {
 
 int cmdEmitCpp(const Options& o) {
     tsy::DiagnosticEngine diag;
-    auto hmod = parseAndRunPipeline(o, diag);
+    tsy::passes::PassManager pm;
+    auto hmod = parseAndRunPipeline(o, diag, &pm);
     if (!hmod) return 1;
     auto lmod = tsy::lir::lowerHirToLir(*hmod, diag);
     if (!lmod || diag.hasErrors()) {
         diag.print(std::cerr);
         std::cerr << "lir lowering failed: " << o.path << "\n";
+        return 1;
+    }
+    pm.runLir(*lmod, diag);
+    if (diag.hasErrors()) {
+        diag.print(std::cerr);
+        std::cerr << "lir pipeline failed: " << o.path << "\n";
         return 1;
     }
 
@@ -180,12 +190,19 @@ int cmdEmitCpp(const Options& o) {
 
 int cmdEmitCu(const Options& o) {
     tsy::DiagnosticEngine diag;
-    auto hmod = parseAndRunPipeline(o, diag);
+    tsy::passes::PassManager pm;
+    auto hmod = parseAndRunPipeline(o, diag, &pm);
     if (!hmod) return 1;
     auto lmod = tsy::lir::lowerHirToLir(*hmod, diag);
     if (!lmod || diag.hasErrors()) {
         diag.print(std::cerr);
         std::cerr << "lir lowering failed: " << o.path << "\n";
+        return 1;
+    }
+    pm.runLir(*lmod, diag);
+    if (diag.hasErrors()) {
+        diag.print(std::cerr);
+        std::cerr << "lir pipeline failed: " << o.path << "\n";
         return 1;
     }
 
@@ -205,12 +222,19 @@ int cmdEmitCu(const Options& o) {
 
 int cmdEmitLir(const Options& o) {
     tsy::DiagnosticEngine diag;
-    auto hmod = parseAndRunPipeline(o, diag);
+    tsy::passes::PassManager pm;
+    auto hmod = parseAndRunPipeline(o, diag, &pm);
     if (!hmod) return 1;
     auto lmod = tsy::lir::lowerHirToLir(*hmod, diag);
     if (!lmod || diag.hasErrors()) {
         diag.print(std::cerr);
         std::cerr << "lir lowering failed: " << o.path << "\n";
+        return 1;
+    }
+    pm.runLir(*lmod, diag);
+    if (diag.hasErrors()) {
+        diag.print(std::cerr);
+        std::cerr << "lir pipeline failed: " << o.path << "\n";
         return 1;
     }
     tsy::lir::printModule(std::cout, *lmod);
@@ -219,12 +243,19 @@ int cmdEmitLir(const Options& o) {
 
 int cmdRunLir(const Options& o) {
     tsy::DiagnosticEngine diag;
-    auto hmod = parseAndRunPipeline(o, diag);
+    tsy::passes::PassManager pm;
+    auto hmod = parseAndRunPipeline(o, diag, &pm);
     if (!hmod) return 1;
     auto lmod = tsy::lir::lowerHirToLir(*hmod, diag);
     if (!lmod || diag.hasErrors()) {
         diag.print(std::cerr);
         std::cerr << "lir lowering failed: " << o.path << "\n";
+        return 1;
+    }
+    pm.runLir(*lmod, diag);
+    if (diag.hasErrors()) {
+        diag.print(std::cerr);
+        std::cerr << "lir pipeline failed: " << o.path << "\n";
         return 1;
     }
     tsy::lir::RunResult result;

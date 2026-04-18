@@ -7,6 +7,7 @@
 
 #include "../frontend/diagnostics.h"
 #include "../hir/ops.h"
+#include "../lir/ir.h"
 
 namespace tsy::passes {
 
@@ -14,27 +15,29 @@ namespace tsy::passes {
 // shared engine so `tsc emit-hir` and test drivers see the same messages.
 using PassFn = std::function<void(tsy::hir::Module&, tsy::DiagnosticEngine&)>;
 
+using LirPassFn =
+    std::function<void(tsy::lir::Module&, tsy::DiagnosticEngine&)>;
+
 class PassManager {
    public:
-    // Register a pass under a user-visible name. Names are matched by the
-    // `--disable-pass=<name>` CLI flag and by the test driver.
     void add(std::string name, PassFn fn);
+    void addLir(std::string name, LirPassFn fn);
 
-    // Skip a pass by name for this run (or until reenable). Unknown names
-    // are silently tolerated so disabling a pass that isn't in the current
-    // pipeline is a no-op.
     void disable(const std::string& name);
     void enable(const std::string& name);
     bool isDisabled(const std::string& name) const;
 
-    // Return the ordered pass names (useful for logs / CLI dumps).
-    std::vector<std::string> names() const;
+    std::vector<std::string> names() const;     // HIR + LIR combined
+    std::vector<std::string> lirNames() const;  // LIR-only subset
 
     void run(tsy::hir::Module& m, tsy::DiagnosticEngine& diag) const;
+    void runLir(tsy::lir::Module& m, tsy::DiagnosticEngine& diag) const;
 
    private:
-    struct Entry { std::string name; PassFn fn; };
-    std::vector<Entry> passes_;
+    struct HirEntry { std::string name; PassFn fn; };
+    struct LirEntry { std::string name; LirPassFn fn; };
+    std::vector<HirEntry> passes_;
+    std::vector<LirEntry> lir_passes_;
     std::unordered_set<std::string> disabled_;
 };
 
@@ -42,6 +45,10 @@ class PassManager {
 void runVerifier(tsy::hir::Module& m, tsy::DiagnosticEngine& diag);
 void runConstFold(tsy::hir::Module& m, tsy::DiagnosticEngine& diag);
 void runDCE(tsy::hir::Module& m, tsy::DiagnosticEngine& diag);
+
+// LIR passes (W9).
+void runLayoutLowering(tsy::lir::Module& m, tsy::DiagnosticEngine& diag);
+void runScheduleCuda(tsy::lir::Module& m, tsy::DiagnosticEngine& diag);
 
 // --- standard pipelines ---------------------------------------------------
 //
