@@ -1,6 +1,8 @@
 #include "printer.h"
 
+#include <algorithm>
 #include <sstream>
+#include <vector>
 
 namespace tsy::lir {
 
@@ -56,6 +58,17 @@ void printFunction(std::ostream& os, const Function& f, int indent) {
         for (size_t i = 0; i < s.operand_bufs.size(); ++i) {
             os << (i == 0 ? " " : ", ");
             os << "%" << f.buffers[s.operand_bufs[i]].name;
+        }
+        if (!s.attrs.empty()) {
+            std::vector<std::pair<std::string, std::string>> kv(
+                s.attrs.begin(), s.attrs.end());
+            std::sort(kv.begin(), kv.end());
+            os << " {";
+            for (size_t i = 0; i < kv.size(); ++i) {
+                if (i) os << ", ";
+                os << kv[i].first << "=\"" << kv[i].second << "\"";
+            }
+            os << "}";
         }
         os << "\n";
     }

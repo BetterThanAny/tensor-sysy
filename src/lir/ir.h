@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "../frontend/location.h"
@@ -42,6 +43,13 @@ struct Stmt {
     std::vector<int> operand_bufs; // indices into Function::buffers.
     int result_buf = -1;           // index into Function::buffers; -1 = none.
     tsy::SourceLocation loc;
+
+    // Generic attribute map. Passes write into this (e.g. ScheduleCudaPass
+    // sets "variant" for matmul calls). The LIR printer emits these as a
+    // trailing `{k="v", ...}` group, sorted by key for golden stability.
+    // Default-empty preserves pre-W9 behaviour (printouts / codegen are
+    // byte-identical to W8 when no pass writes into attrs).
+    std::unordered_map<std::string, std::string> attrs;
 };
 
 struct Function {
