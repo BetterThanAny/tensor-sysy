@@ -73,7 +73,7 @@ LIR
 | **W9** | CUDA 调度和 layout lowering | 初版 scheduler、layout lowering、shape 查表策略 | `python benchmarks/run_shapes.py` | 5 类 shape 数值对拍、调度覆盖、odd shape |
 | **W10** | Transformer Block E2E | `examples/transformer_block.tsy`，attention + ffn 跑通 | `pytest tests/e2e/test_transformer_block.py` | vs PyTorch、vs mini-llm-engine 子路径 |
 | **W11** ✅ 2026-04-18 | CI + Benchmark | GHA CPU CI、本地 GPU bench 脚本、1024³ matmul baseline + bench_compare | GitHub Actions + `bash scripts/bench_local.sh` 0 FAIL | 稳定性、回归阈值、中位数策略 |
-| **W12** | 收口 | README、架构图、博客、demo | 文档可复现 | 文档命令全跑通 |
+| **W12** ✅ 2026-04-18 | 收口 | README 重写、`docs/architecture.md`、`docs/blog/writeup.md`、`docs/demo.md` | 文档命令全实机跑通（含 §4/§5/§6） | 稳定性、可独立复现 |
 
 ---
 
@@ -325,6 +325,29 @@ tests/golden/matmul_basic/
 ---
 
 ## 验收口径 v2
+
+### W12 成功标准（2026-04-18 已达成）
+下面 4 条同时满足，才算"收口完成"：
+
+1. `README.md` 真实反映 W11 状态（CPU+CUDA 闭环、32/32 ctest、benchmark gate）
+2. `docs/architecture.md` 给出前端→HIR→LIR→adapter→backend 数据流 + pass pipeline + 扩展点
+3. `docs/blog/writeup.md` 记录 12 周关键决策与反复盘（尤其是 baseline 从 18 行收窄到 3 行的证据）
+4. `docs/demo.md` 的 §2-§6 每一条命令实机跑通（含 CI-equivalent 重建流程）
+
+### W12 验收命令
+
+```bash
+# 本地全量（已验证 32/32）
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
+ctest --test-dir build --output-on-failure
+
+# demo.md §5 的 CI-equivalent（已验证 —— 本地 32/32，GHA CPU-only ~20/20）
+# 详见 docs/demo.md §5 完整命令块
+
+# demo.md §6 bench gate（已验证 0/1/2 FAIL 组合都能在 3 次内命中 0 FAIL）
+bash scripts/bench_local.sh
+.venv/bin/python benchmarks/run_shapes.py --check-scheduler
+```
 
 ### W7 成功标准
 下面 4 条同时满足，才算"CPU 编译器闭环完成"：
