@@ -100,6 +100,27 @@ void adapterRMSNorm(const Tensor& x, Tensor& y) {
                  static_cast<int>(outer), static_cast<int>(inner), kEps);
 }
 
+void adapterTranspose(const Tensor& x, Tensor& c) {
+    assert(x.dims.size() == 2);
+    const int64_t M = x.dims[0];
+    const int64_t N = x.dims[1];
+    c.data.assign(static_cast<size_t>(M) * static_cast<size_t>(N), 0.0f);
+    for (int64_t i = 0; i < M; ++i) {
+        for (int64_t j = 0; j < N; ++j) {
+            c.data[j * M + i] = x.data[i * N + j];
+        }
+    }
+}
+
+void adapterReLU(const Tensor& x, Tensor& c) {
+    const size_t n = x.data.size();
+    c.data.assign(n, 0.0f);
+    for (size_t i = 0; i < n; ++i) {
+        float v = x.data[i];
+        c.data[i] = v < 0.0f ? 0.0f : v;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // executor: parallel to lir::runFunctionImpl but dispatches through adapters
 // ---------------------------------------------------------------------------
@@ -158,6 +179,18 @@ RunResult runFunctionAdapter(const Function& f, DiagnosticEngine& diag) {
                 r.ok = false; continue;
             }
             adapterRMSNorm(r.buffers[s.operand_bufs[0]], out);
+        } else if (s.primitive == "transpose") {
+            if (s.operand_bufs.size() != 1) {
+                diag.error(s.loc, "cpu-adapter transpose: expected 1 operand");
+                r.ok = false; continue;
+            }
+            adapterTranspose(r.buffers[s.operand_bufs[0]], out);
+        } else if (s.primitive == "relu") {
+            if (s.operand_bufs.size() != 1) {
+                diag.error(s.loc, "cpu-adapter relu: expected 1 operand");
+                r.ok = false; continue;
+            }
+            adapterReLU(r.buffers[s.operand_bufs[0]], out);
         } else {
             diag.error(s.loc, "cpu-adapter: unsupported primitive '" +
                                   s.primitive + "'");

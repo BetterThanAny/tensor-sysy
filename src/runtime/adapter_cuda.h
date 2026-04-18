@@ -40,6 +40,13 @@ void adapterSoftmaxCuda(const Tensor& x, Tensor& y);
 // adapter behaviour). Warp-shuffle reduce over x^2.
 void adapterRMSNormCuda(const Tensor& x, Tensor& y);
 
+// 2-D transpose on GPU. x:[M,N] → c:[N,M]. Naive one-thread-per-element
+// kernel, block(32,32). Used by W10 attention for Q @ K^T.
+void adapterTransposeCuda(const Tensor& x, Tensor& c);
+
+// Elementwise ReLU on GPU. Shape preserved. Flat block=256 launch.
+void adapterReLUCuda(const Tensor& x, Tensor& c);
+
 // Executor entry points (parallel to runWithCpuAdapter).
 tsy::lir::RunResult runWithCudaAdapter(const tsy::lir::Module& m,
                                        tsy::DiagnosticEngine& diag);

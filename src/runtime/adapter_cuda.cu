@@ -427,6 +427,63 @@ void adapterRMSNormCuda(const Tensor& x, Tensor& y) {
     CUDA_CHECK(cudaFree(dY));
 }
 
+__global__ void transposeKernel(const float* __restrict__ x,
+                                 float* __restrict__ y,
+                                 int M, int N) {
+    int i = blockIdx.y * blockDim.y + threadIdx.y;  // row of x
+    int j = blockIdx.x * blockDim.x + threadIdx.x;  // col of x
+    if (i >= M || j >= N) return;
+    y[j * M + i] = x[i * N + j];
+}
+
+__global__ void reluKernel(const float* __restrict__ a,
+                            float* __restrict__ c, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) c[i] = fmaxf(0.0f, a[i]);
+}
+
+void adapterTransposeCuda(const Tensor& x, Tensor& c) {
+    assert(x.dims.size() == 2);
+    const int M = static_cast<int>(x.dims[0]);
+    const int N = static_cast<int>(x.dims[1]);
+    const size_t bytes = static_cast<size_t>(M) * N * sizeof(float);
+
+    float *dX = nullptr, *dY = nullptr;
+    CUDA_CHECK(cudaMalloc(&dX, bytes));
+    CUDA_CHECK(cudaMalloc(&dY, bytes));
+    CUDA_CHECK(cudaMemcpy(dX, x.data.data(), bytes, cudaMemcpyHostToDevice));
+
+    dim3 block(32, 32);
+    dim3 grid((N + 31) / 32, (M + 31) / 32);
+    transposeKernel<<<grid, block>>>(dX, dY, M, N);
+    CUDA_CHECK(cudaGetLastError());
+
+    c.data.assign(static_cast<size_t>(M) * N, 0.0f);
+    CUDA_CHECK(cudaMemcpy(c.data.data(), dY, bytes, cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaFree(dX));
+    CUDA_CHECK(cudaFree(dY));
+}
+
+void adapterReLUCuda(const Tensor& x, Tensor& c) {
+    const int n = static_cast<int>(x.data.size());
+    const size_t bytes = static_cast<size_t>(n) * sizeof(float);
+
+    float *dA = nullptr, *dC = nullptr;
+    CUDA_CHECK(cudaMalloc(&dA, bytes));
+    CUDA_CHECK(cudaMalloc(&dC, bytes));
+    CUDA_CHECK(cudaMemcpy(dA, x.data.data(), bytes, cudaMemcpyHostToDevice));
+
+    const int block = 256;
+    const int grid  = (n + block - 1) / block;
+    reluKernel<<<grid, block>>>(dA, dC, n);
+    CUDA_CHECK(cudaGetLastError());
+
+    c.data.assign(static_cast<size_t>(n), 0.0f);
+    CUDA_CHECK(cudaMemcpy(c.data.data(), dC, bytes, cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaFree(dA));
+    CUDA_CHECK(cudaFree(dC));
+}
+
 namespace {
 
 RunResult runFunctionCudaAdapter(const Function& f, DiagnosticEngine& diag) {
@@ -484,6 +541,18 @@ RunResult runFunctionCudaAdapter(const Function& f, DiagnosticEngine& diag) {
                 r.ok = false; continue;
             }
             adapterRMSNormCuda(r.buffers[s.operand_bufs[0]], out);
+        } else if (s.primitive == "transpose") {
+            if (s.operand_bufs.size() != 1) {
+                diag.error(s.loc, "cuda-adapter transpose: expected 1 operand");
+                r.ok = false; continue;
+            }
+            adapterTransposeCuda(r.buffers[s.operand_bufs[0]], out);
+        } else if (s.primitive == "relu") {
+            if (s.operand_bufs.size() != 1) {
+                diag.error(s.loc, "cuda-adapter relu: expected 1 operand");
+                r.ok = false; continue;
+            }
+            adapterReLUCuda(r.buffers[s.operand_bufs[0]], out);
         } else {
             diag.error(s.loc, "cuda-adapter: unsupported primitive '" +
                                    s.primitive + "'");

@@ -48,6 +48,12 @@ void adapterSoftmax(const Tensor& x, Tensor& y);
 // is cached per distinct innermost-dim size across calls.
 void adapterRMSNorm(const Tensor& x, Tensor& y);
 
+// 2-D transpose. x:[M,N] → c:[N,M]. Used by W10 attention for Q @ K^T.
+void adapterTranspose(const Tensor& x, Tensor& c);
+
+// Elementwise ReLU. Shape preserved. Used by W10 FFN activation.
+void adapterReLU(const Tensor& x, Tensor& c);
+
 // Execute a whole LIR Function via the CPU adapter. Parallel to
 // lir::runFunctionImpl() but dispatches every Call through the
 // adapter*() primitives above. Deterministic parameter fill is shared
