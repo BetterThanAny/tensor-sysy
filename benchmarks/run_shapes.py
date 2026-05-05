@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Thin driver over build/tsy-bench. No external deps — stdlib only.
+"""Thin driver over tsy-bench. No external deps — stdlib only.
 
 Usage:
     python benchmarks/run_shapes.py             # full sweep + table
     python benchmarks/run_shapes.py --smoke     # ctest entrypoint
     python benchmarks/run_shapes.py --check-scheduler
                                                 # assert tiled > naive at 1024^3
+    python benchmarks/run_shapes.py --bench /tmp/build/tsy-bench
 """
 
 from __future__ import annotations
@@ -13,12 +14,11 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-
-BENCH = Path("build/tsy-bench")
 
 # Empirical threshold: on WSL + RTX 3080 we've measured tiled ~1.26x
 # faster than naive at 1024^3. Use 1.2x as the regression guard: looser
@@ -26,12 +26,20 @@ BENCH = Path("build/tsy-bench")
 SCHEDULER_SPEEDUP_MIN = 1.2
 
 
-def run(bench_args: list[str]) -> list[dict]:
-    if not BENCH.exists():
-        print(f"error: {BENCH} not found (build it first with cmake --build)",
+def default_bench() -> Path:
+    if os.environ.get("TSY_BENCH"):
+        return Path(os.environ["TSY_BENCH"])
+    if os.environ.get("TSY_BUILD_DIR"):
+        return Path(os.environ["TSY_BUILD_DIR"]) / "tsy-bench"
+    return Path("build/tsy-bench")
+
+
+def run(bench: Path, bench_args: list[str]) -> list[dict]:
+    if not bench.exists():
+        print(f"error: {bench} not found (set --bench, TSY_BENCH, or TSY_BUILD_DIR)",
               file=sys.stderr)
         sys.exit(1)
-    cmd = [str(BENCH), *bench_args]
+    cmd = [str(bench), *bench_args]
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     return list(csv.DictReader(io.StringIO(result.stdout)))
 
@@ -75,10 +83,13 @@ def main() -> int:
                     help="one shape, exit 0 if tsy-bench runs cleanly")
     ap.add_argument("--check-scheduler", action="store_true",
                     help="assert tiled > naive at 1024^3 (not in ctest)")
+    ap.add_argument("--bench", type=Path, default=default_bench(),
+                    help="path to tsy-bench (default: TSY_BENCH, "
+                         "TSY_BUILD_DIR/tsy-bench, or build/tsy-bench)")
     args = ap.parse_args()
 
     bench_args = ["--smoke"] if args.smoke else []
-    rows = run(bench_args)
+    rows = run(args.bench, bench_args)
     if not rows:
         print("no rows from tsy-bench", file=sys.stderr)
         return 1

@@ -137,7 +137,11 @@ if(TARGET tsy_runtime_cuda)
 
     # W9: Python driver smoke — confirms tsy-bench runs + CSV is parseable.
     add_test(NAME cli_bench_smoke
-        COMMAND python3 ${CMAKE_SOURCE_DIR}/benchmarks/run_shapes.py --smoke
+        COMMAND ${CMAKE_COMMAND} -E env
+                "TSY_BENCH=$<TARGET_FILE:tsy-bench>"
+                "TSY_BUILD_DIR=${CMAKE_BINARY_DIR}"
+                ${TSY_PYTHON_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/benchmarks/run_shapes.py --smoke
     )
     set_tests_properties(cli_bench_smoke PROPERTIES
         PASS_REGULAR_EXPRESSION "matmul.*256.*256.*256"
@@ -265,31 +269,38 @@ set_tests_properties(cli_run_transformer_block_native PROPERTIES
     PASS_REGULAR_EXPRESSION "local out shape=\\[4,8\\]"
 )
 
-# W11: verify TSY_PYTHON_EXECUTABLE is usable before registering e2e tests.
-# Existence check runs first — catches stale cache pointing at a deleted .venv
-# with a clear "doesn't exist" error instead of a confusing import failure.
+# W11: register e2e pytest only when the selected interpreter can import its
+# dependencies. Missing pytest/numpy should not make the C++ test matrix
+# unconfigurable on a lean machine.
+set(_tsy_pytest_ready FALSE)
 if(NOT EXISTS "${TSY_PYTHON_EXECUTABLE}")
-    message(FATAL_ERROR
-        "TSY_PYTHON_EXECUTABLE=${TSY_PYTHON_EXECUTABLE} does not exist.\n"
-        "  Likely cause: stale CMakeCache.txt after .venv was recreated/deleted.\n"
-        "  Fix: rm build/CMakeCache.txt && reconfigure, "
-        "or pass -DTSY_PYTHON_EXECUTABLE=<path>")
-endif()
-execute_process(
-    COMMAND ${TSY_PYTHON_EXECUTABLE} -c "import numpy, pytest"
-    RESULT_VARIABLE _tsy_py_probe
-    OUTPUT_QUIET ERROR_QUIET)
-if(NOT _tsy_py_probe EQUAL 0)
-    message(FATAL_ERROR
-        "TSY_PYTHON_EXECUTABLE=${TSY_PYTHON_EXECUTABLE} lacks numpy/pytest.\n"
-        "  Fix: uv pip install --python ${TSY_PYTHON_EXECUTABLE} numpy pytest")
+    message(WARNING
+        "TSY_PYTHON_EXECUTABLE=${TSY_PYTHON_EXECUTABLE} does not exist; "
+        "e2e_transformer_block_pytest will not be registered.")
+else()
+    execute_process(
+        COMMAND ${TSY_PYTHON_EXECUTABLE} -c "import numpy, pytest"
+        RESULT_VARIABLE _tsy_py_probe
+        OUTPUT_QUIET ERROR_QUIET)
+    if(_tsy_py_probe EQUAL 0)
+        set(_tsy_pytest_ready TRUE)
+    else()
+        message(WARNING
+            "TSY_PYTHON_EXECUTABLE=${TSY_PYTHON_EXECUTABLE} lacks numpy/pytest; "
+            "e2e_transformer_block_pytest will not be registered.")
+    endif()
 endif()
 
-# W10: e2e pytest — compares 3 backends against numpy reference.
-add_test(NAME e2e_transformer_block_pytest
-    COMMAND ${TSY_PYTHON_EXECUTABLE} -m pytest
-            -xvs ${CMAKE_SOURCE_DIR}/tests/e2e/test_transformer_block.py
-)
-set_tests_properties(e2e_transformer_block_pytest PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
+if(_tsy_pytest_ready)
+    # W10: e2e pytest — compares 3 backends against numpy reference.
+    add_test(NAME e2e_transformer_block_pytest
+        COMMAND ${CMAKE_COMMAND} -E env
+                "TSY_TSC=$<TARGET_FILE:tsc>"
+                "TSY_BUILD_DIR=${CMAKE_BINARY_DIR}"
+                ${TSY_PYTHON_EXECUTABLE} -m pytest
+                -xvs ${CMAKE_SOURCE_DIR}/tests/e2e/test_transformer_block.py
+    )
+    set_tests_properties(e2e_transformer_block_pytest PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+endif()

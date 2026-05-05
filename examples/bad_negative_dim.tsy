@@ -1,0 +1,9 @@
+// Verifier diagnostic: every resolved tensor dimension must be positive.
+const int M = -1;
+const int N = 4;
+
+void block(tensor<f32>[M, N] X) {
+    return;
+}
+
+int main() { return 0; }

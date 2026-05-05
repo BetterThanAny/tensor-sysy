@@ -1,0 +1,12 @@
+// Verifier diagnostic: runtime/codegen currently support only 2-D matmul.
+const int B = 2;
+const int M = 4;
+const int K = 8;
+const int N = 16;
+
+void layer(tensor<f32>[B, M, K] A, tensor<f32>[B, K, N] W) {
+    tensor<f32>[B, M, N] C = @matmul(A, W);
+    return;
+}
+
+int main() { return 0; }

@@ -9,13 +9,14 @@ namespace tsy::hir {
 // Issues are reported through `diag`; the module is not mutated.
 //
 // W3 checks:
-//   - MatMul: 2 operands, both tensors rank ≥ 2, inner dims match, result
-//     shape is [lhs[:-1]..., rhs[-1]].
+//   - MatMul: 2 operands, both tensors rank == 2, inner dims match, result
+//     shape is [lhs[0], rhs[1]].
 //   - Add: 2 operands, same rank and shape, same dtype.
 //   - Softmax / RMSNorm: 1 operand, result shape equals operand shape.
 //   - Unknown ops: report a best-effort "unrecognised builtin" diagnostic
 //     that carries the AST name preserved by the lowerer.
-//   - Shape integrity: tensor operands must have fully resolved dims.
+//   - Shape integrity: tensor values must have fully resolved dims, and every
+//     resolved dim must be > 0.
 void verifyModule(const Module& m, tsy::DiagnosticEngine& diag);
 
 }  // namespace tsy::hir

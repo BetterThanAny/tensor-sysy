@@ -50,6 +50,23 @@ bool requireResolved(const Value& v, DiagnosticEngine& diag, SourceLocation loc,
     return false;
 }
 
+bool requirePositiveResolvedDims(const Value& v, DiagnosticEngine& diag,
+                                 SourceLocation loc, const char* role) {
+    if (!requireResolved(v, diag, loc, role)) return false;
+    for (size_t i = 0; i < v.type.shape.dims.size(); ++i) {
+        const auto& d = v.type.shape.dims[i];
+        if (d.resolved && *d.resolved <= 0) {
+            std::ostringstream oss;
+            oss << role << " tensor '" << v.name << "' has non-positive dim "
+                << d.format() << " at axis " << i
+                << "; every resolved tensor dim must be > 0.";
+            diag.error(loc, oss.str());
+            return false;
+        }
+    }
+    return true;
+}
+
 bool requireTensor(const Value& v, DiagnosticEngine& diag, SourceLocation loc,
                    const char* role, const char* opName) {
     if (isTensor(v)) return true;
@@ -73,12 +90,12 @@ void verifyMatMul(const Op& op, DiagnosticEngine& diag) {
     const auto& b = *op.operands[1];
     if (!requireTensor(a, diag, op.loc, "lhs", "matmul")) return;
     if (!requireTensor(b, diag, op.loc, "rhs", "matmul")) return;
-    if (!requireResolved(a, diag, op.loc, "matmul lhs")) return;
-    if (!requireResolved(b, diag, op.loc, "matmul rhs")) return;
+    if (!requirePositiveResolvedDims(a, diag, op.loc, "matmul lhs")) return;
+    if (!requirePositiveResolvedDims(b, diag, op.loc, "matmul rhs")) return;
 
-    if (a.type.shape.rank() < 2 || b.type.shape.rank() < 2) {
+    if (a.type.shape.rank() != 2 || b.type.shape.rank() != 2) {
         std::ostringstream oss;
-        oss << "matmul requires rank >= 2 on both sides, got lhs rank "
+        oss << "matmul currently supports exactly rank-2 tensors, got lhs rank "
             << a.type.shape.rank() << ", rhs rank " << b.type.shape.rank();
         diag.error(op.loc, oss.str());
         return;
@@ -104,9 +121,10 @@ void verifyMatMul(const Op& op, DiagnosticEngine& diag) {
     }
     const auto& r = *op.results[0];
     if (!requireTensor(r, diag, op.loc, "result", "matmul")) return;
-    if (!requireResolved(r, diag, op.loc, "matmul result")) return;
+    if (!requirePositiveResolvedDims(r, diag, op.loc, "matmul result")) return;
 
-    // Expected result shape: [...lhs[:-1], rhs[-1]].
+    // Expected result shape for the current 2-D runtime/codegen contract:
+    // [lhs[0], rhs[1]].
     Shape expected;
     for (size_t i = 0; i + 1 < aDims.size(); ++i) expected.dims.push_back(aDims[i]);
     expected.dims.push_back(bDims[bDims.size() - 1]);
@@ -131,8 +149,8 @@ void verifyAdd(const Op& op, DiagnosticEngine& diag) {
     const auto& b = *op.operands[1];
     if (!requireTensor(a, diag, op.loc, "lhs", "add")) return;
     if (!requireTensor(b, diag, op.loc, "rhs", "add")) return;
-    if (!requireResolved(a, diag, op.loc, "add lhs")) return;
-    if (!requireResolved(b, diag, op.loc, "add rhs")) return;
+    if (!requirePositiveResolvedDims(a, diag, op.loc, "add lhs")) return;
+    if (!requirePositiveResolvedDims(b, diag, op.loc, "add rhs")) return;
     if (a.type.dtype != b.type.dtype) {
         diag.error(op.loc, "add: dtype mismatch");
         return;
@@ -167,7 +185,7 @@ void verifyUnary(const Op& op, DiagnosticEngine& diag, const char* name) {
     }
     const auto& a = *op.operands[0];
     if (!requireTensor(a, diag, op.loc, "input", name)) return;
-    if (!requireResolved(a, diag, op.loc, name)) return;
+    if (!requirePositiveResolvedDims(a, diag, op.loc, name)) return;
     if (op.results.size() != 1) {
         std::ostringstream oss;
         oss << name << " must produce exactly 1 result";
@@ -190,7 +208,7 @@ void verifyTranspose(const Op& op, DiagnosticEngine& diag) {
     }
     const auto& a = *op.operands[0];
     if (!requireTensor(a, diag, op.loc, "input", "transpose")) return;
-    if (!requireResolved(a, diag, op.loc, "transpose")) return;
+    if (!requirePositiveResolvedDims(a, diag, op.loc, "transpose")) return;
 
     if (a.type.shape.rank() != 2) {
         std::ostringstream oss;
@@ -205,7 +223,7 @@ void verifyTranspose(const Op& op, DiagnosticEngine& diag) {
     }
     const auto& r = *op.results[0];
     if (!requireTensor(r, diag, op.loc, "result", "transpose")) return;
-    if (!requireResolved(r, diag, op.loc, "transpose result")) return;
+    if (!requirePositiveResolvedDims(r, diag, op.loc, "transpose result")) return;
 
     Shape expected;
     expected.dims.push_back(a.type.shape.dims[1]);
@@ -233,10 +251,25 @@ void verifyUnknown(const Op& op, DiagnosticEngine& diag) {
     diag.error(op.loc, "unknown builtin '@" + op.builtin_name + "'");
 }
 
+bool verifyFunctionTensorShapes(const Function& f, DiagnosticEngine& diag) {
+    bool ok = true;
+    for (const auto& p : f.params) {
+        ok &= requirePositiveResolvedDims(*p, diag, f.loc, "function parameter");
+    }
+    for (const auto& opPtr : f.ops) {
+        const auto& op = *opPtr;
+        for (const auto& r : op.results) {
+            ok &= requirePositiveResolvedDims(*r, diag, op.loc, "operation result");
+        }
+    }
+    return ok;
+}
+
 }  // namespace
 
 void verifyModule(const Module& m, DiagnosticEngine& diag) {
     for (const auto& f : m.funcs) {
+        if (!verifyFunctionTensorShapes(*f, diag)) continue;
         for (const auto& opPtr : f->ops) {
             const auto& op = *opPtr;
             switch (op.kind) {

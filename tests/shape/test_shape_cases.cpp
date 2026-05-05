@@ -121,6 +121,12 @@ int main(int argc, char** argv) {
         // --- bad: shape / arity / unknown builtin / unresolved --------------
         {"shape_bad_matmul_mismatch", base + "/bad_matmul_mismatch.tsy", false,
          "inner dim mismatch", 8, ""},
+        {"shape_bad_matmul_rank3", base + "/bad_matmul_rank3.tsy", false,
+         "matmul currently supports exactly rank-2 tensors", 8, ""},
+        {"shape_bad_zero_dim", base + "/bad_zero_dim.tsy", false,
+         "every resolved tensor dim must be > 0", 5, ""},
+        {"shape_bad_negative_dim", base + "/bad_negative_dim.tsy", false,
+         "every resolved tensor dim must be > 0", 5, ""},
         {"shape_bad_add_shape", base + "/bad_add_shape.tsy", false,
          "identical shapes", 7, ""},
         {"shape_bad_softmax_arity", base + "/bad_softmax_arity.tsy", false,

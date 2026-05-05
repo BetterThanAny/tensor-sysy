@@ -8,6 +8,7 @@ Provides:
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -17,13 +18,16 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-BUILD_DIR = REPO_ROOT / "build"
-TSC = BUILD_DIR / "tsc"
+BUILD_DIR = Path(os.environ.get("TSY_BUILD_DIR", REPO_ROOT / "build"))
+TSC = Path(os.environ.get("TSY_TSC", BUILD_DIR / "tsc"))
 
 
 def run_backend(backend: str, tsy_file: Path) -> str:
     if not TSC.exists():
-        pytest.skip(f"tsc not built at {TSC}; run cmake --build build first")
+        pytest.skip(
+            f"tsc not built at {TSC}; set TSY_TSC or TSY_BUILD_DIR, "
+            "or run cmake --build for that build tree first"
+        )
     cmd = [str(TSC), "run-lir", f"--backend={backend}", str(tsy_file)]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:

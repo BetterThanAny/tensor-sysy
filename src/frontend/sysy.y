@@ -1,11 +1,3 @@
-%code requires {
-// Emitted into both sysy.tab.hpp and sysy.tab.cpp, so the yyparse()
-// signature (which names tsy::BaseASTPtr / tsy::DiagnosticEngine via
-// %parse-param) is well-formed wherever the header is included.
-#include "ast.h"
-#include "diagnostics.h"
-}
-
 %{
 
 #include <cstring>
