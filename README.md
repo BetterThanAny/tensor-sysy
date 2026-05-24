@@ -29,7 +29,7 @@ the CUDA adapter is project-local FP32 CUDA kernels plus cuBLAS.
 - CUDA support is optional at configure time. Hosts with a CUDA compiler build
   `adapter_cuda`, CUDA examples, CUDA tests, and `tsy-bench`; CPU-only hosts
   skip those targets.
-- The local CPU-only test matrix for this checkout registers 31 CTest tests.
+- The local CPU-only test matrix for this checkout registers 33 CTest tests.
   Additional pytest and CUDA tests depend on Python packages and CUDA
   availability.
 - `scripts/bench_local.sh` gates the tracked 1024³ matmul rows against the

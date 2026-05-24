@@ -1,0 +1,10 @@
+const int M = 2;
+
+int bad_nested_unknown(tensor<f32>[M, M] A) {
+    {
+        tensor<f32>[M, M] B = @does_not_exist(A);
+    }
+    return 0;
+}
+
+int main() { return 0; }

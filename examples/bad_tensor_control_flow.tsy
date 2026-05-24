@@ -1,0 +1,10 @@
+const int M = 2;
+
+int bad_tensor_control_flow(tensor<f32>[M, M] A) {
+    if (1) {
+        tensor<f32>[M, M] B = @relu(A);
+    }
+    return 0;
+}
+
+int main() { return 0; }

@@ -13,7 +13,7 @@ struct SourceLocation {
     bool valid() const { return line > 0; }
 
     std::string format() const {
-        if (!valid()) return "<unknown>";
+        if (!valid()) return file.empty() ? std::string("<unknown>") : file;
         std::string out = file.empty() ? std::string("<input>") : file;
         out += ":";
         out += std::to_string(line);

@@ -1,0 +1,8 @@
+const int M = 2;
+
+int bad_complex_init(tensor<f32>[M, M] A, tensor<f32>[M, M] B) {
+    tensor<f32>[M, M] C = @add(A, B) + @add(A, B);
+    return 0;
+}
+
+int main() { return 0; }

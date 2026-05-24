@@ -212,6 +212,11 @@ add_test(NAME cli_unknown_command_exits_nonzero
 )
 set_tests_properties(cli_unknown_command_exits_nonzero PROPERTIES WILL_FAIL TRUE)
 
+add_test(NAME cli_missing_input_path_reports_path
+    COMMAND /bin/sh -c
+            "$<TARGET_FILE:tsc> parse /tmp/tensor-sysy-no-such-input.tsy 2>&1 | grep -q '/tmp/tensor-sysy-no-such-input.tsy: error: cannot open file'"
+)
+
 add_test(NAME cli_parse_smoke
     COMMAND tsc parse ${CMAKE_SOURCE_DIR}/examples/smoke.tsy
 )
@@ -293,6 +298,13 @@ add_test(NAME cli_run_transformer_block_native
 )
 set_tests_properties(cli_run_transformer_block_native PROPERTIES
     PASS_REGULAR_EXPRESSION "local out shape=\\[4,8\\]"
+)
+
+add_test(NAME cli_emit_lir_after_return_drops_unreachable
+    COMMAND tsc emit-lir ${CMAKE_SOURCE_DIR}/examples/after_return.tsy
+)
+set_tests_properties(cli_emit_lir_after_return_drops_unreachable PROPERTIES
+    FAIL_REGULAR_EXPRESSION "call add|%C"
 )
 
 # W11: register e2e pytest only when the selected interpreter can import its

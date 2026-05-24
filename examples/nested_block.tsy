@@ -1,0 +1,11 @@
+const int M = 2;
+
+int nested_block(tensor<f32>[M, M] A, tensor<f32>[M, M] B) {
+    {
+        const int N = 2;
+        tensor<f32>[N, N] C = @add(A, B);
+    }
+    return 0;
+}
+
+int main() { return 0; }

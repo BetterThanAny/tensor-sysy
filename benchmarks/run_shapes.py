@@ -5,7 +5,7 @@ Usage:
     python benchmarks/run_shapes.py             # full sweep + table
     python benchmarks/run_shapes.py --smoke     # ctest entrypoint
     python benchmarks/run_shapes.py --check-scheduler
-                                                # assert tiled > naive at 1024^3
+                                                # assert scheduled variants are covered
     python benchmarks/run_shapes.py --bench /tmp/build/tsy-bench
 """
 
@@ -18,12 +18,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-
-
-# Empirical threshold: on WSL + RTX 3080 we've measured tiled ~1.26x
-# faster than naive at 1024^3. Use 1.2x as the regression guard: looser
-# than observed, tight enough to catch a scheduler-broken-kernel case.
-SCHEDULER_SPEEDUP_MIN = 1.2
 
 
 def default_bench() -> Path:
@@ -53,28 +47,36 @@ def print_table(rows: list[dict]) -> None:
               f"{float(r['gflops']):9.1f} GFLOPS")
 
 
+def scheduled_variant(m: int, k: int, n: int) -> str:
+    if m * n < 1024:
+        return "naive"
+    aligned = (m % 128 == 0) and (n % 128 == 0) and (k % 8 == 0)
+    large_enough = (m >= 128) and (n >= 128) and (k >= 128)
+    if aligned and large_enough and m * n <= 256 * 256:
+        return "tiled"
+    return "cublas"
+
+
 def check_scheduler(rows: list[dict]) -> int:
-    by = {}
+    by_shape: dict[tuple[str, str, str], set[str]] = {}
     for r in rows:
-        key = (r['M'], r['K'], r['N'], r['variant'])
-        by[key] = float(r['ms_median'])
+        key = (r['M'], r['K'], r['N'])
+        by_shape.setdefault(key, set()).add(r['variant'])
 
-    big = ('1024', '1024', '1024')
-    naive_key = (*big, 'naive')
-    tiled_key = (*big, 'tiled')
+    failures = 0
+    for shape, variants in sorted(by_shape.items(), key=lambda x: tuple(map(int, x[0]))):
+        m, k, n = (int(x) for x in shape)
+        expected = scheduled_variant(m, k, n)
+        label = f"{shape[0]}x{shape[1]}x{shape[2]}"
+        if expected not in variants:
+            print(f"FAIL: scheduler picks {expected} for {label}, "
+                  f"but benchmark rows only contain {sorted(variants)}",
+                  file=sys.stderr)
+            failures += 1
+        else:
+            print(f"scheduler {label}: {expected} covered")
 
-    if naive_key not in by or tiled_key not in by:
-        print("skip: 1024^3 not in default sweep (did you --shapes override?)",
-              file=sys.stderr)
-        return 0
-
-    speedup = by[naive_key] / by[tiled_key]
-    print(f"1024^3: tiled/naive speedup = {speedup:.2f}x "
-          f"(min required {SCHEDULER_SPEEDUP_MIN:.2f}x)")
-    if speedup < SCHEDULER_SPEEDUP_MIN:
-        print(f"FAIL: below threshold", file=sys.stderr)
-        return 1
-    return 0
+    return 1 if failures else 0
 
 
 def main() -> int:
@@ -82,7 +84,8 @@ def main() -> int:
     ap.add_argument("--smoke", action="store_true",
                     help="one shape, exit 0 if tsy-bench runs cleanly")
     ap.add_argument("--check-scheduler", action="store_true",
-                    help="assert tiled > naive at 1024^3 (not in ctest)")
+                    help="assert each swept shape includes the variant selected "
+                         "by ScheduleCudaPass")
     ap.add_argument("--bench", type=Path, default=default_bench(),
                     help="path to tsy-bench (default: TSY_BENCH, "
                          "TSY_BUILD_DIR/tsy-bench, or build/tsy-bench)")

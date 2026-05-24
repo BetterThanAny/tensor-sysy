@@ -337,11 +337,11 @@ tests/golden/matmul_basic/
 ### W12 验收命令
 
 ```bash
-# 本地全量（已验证 32/32）
+# 本地全量（当前 CPU-only checkout 已验证 33/33）
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
 ctest --test-dir build --output-on-failure
 
-# demo.md §5 的 CI-equivalent（已验证 —— 本地 32/32，GHA CPU-only ~20/20）
+# demo.md §5 的 CI-equivalent（当前本地 33/33，GHA CPU-only ~20/20）
 # 详见 docs/demo.md §5 完整命令块
 
 # demo.md §6 bench gate（已验证 0/1/2 FAIL 组合都能在 3 次内命中 0 FAIL）
@@ -369,7 +369,7 @@ bash scripts/bench_local.sh
 下面 6 条同时满足，才算"自动化质量门槛建立"：
 
 1. `.github/workflows/ci.yml` 绿 —— 每次 push/PR 触发 CPU-path ctest（~20/20）
-2. 本地全 ctest 32/32 通过（含 CUDA）
+2. 本地全 ctest 通过（历史 W11 为 32/32；当前 CPU-only checkout 为 33/33）
 3. `bash scripts/bench_local.sh` 0 FAIL（只 gate 1024³ matmul 三行）
 4. `benchmarks/baseline/rtx3080_wsl.csv` 入库，`docs/benchmarks/baseline.md` 可独立复现
 5. W10 三条 reviewer follow-up 全部落地（TSY_PYTHON_EXECUTABLE / CUDA sync / verifyUnary 注释）
@@ -381,7 +381,7 @@ bash scripts/bench_local.sh
 cd /home/xs/tsy-wsl-export/tensor-sysy
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
-ctest --test-dir build --output-on-failure        # 32/32
+ctest --test-dir build --output-on-failure        # current CPU-only: 33/33
 
 # CI 等价（模拟 GHA runner —— 需要 .venv 先备份）
 mv .venv .venv.bak
@@ -392,7 +392,7 @@ mv .venv.bak .venv
 rm -rf build-cpu
 
 bash scripts/bench_local.sh                        # 0 FAIL
-python3 benchmarks/run_shapes.py --check-scheduler # ≥1.20x tiled/naive
+python3 benchmarks/run_shapes.py --check-scheduler # scheduled variants covered
 ```
 
 ---

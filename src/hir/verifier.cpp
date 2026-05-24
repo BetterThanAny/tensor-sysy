@@ -256,15 +256,28 @@ void verifyTranspose(const Op& op, DiagnosticEngine& diag) {
 }
 
 void verifyUnknown(const Op& op, DiagnosticEngine& diag) {
-    // Only surface a diagnostic when the unknown op carries a builtin-like
-    // name (i.e. the user wrote @foo and we didn't recognise it). Reasons
-    // that the lowerer tags (e.g. "complex-init") are internal and fire
-    // before a real builtin name is visible, so we report those differently.
-    static const char* internalTags[] = {
-        "complex-init", "call-init", "non-builtin-init", "tensor-array-init",
-    };
-    for (const char* tag : internalTags) {
-        if (op.builtin_name == tag) return;  // already had its moment.
+    if (op.builtin_name == "complex-init") {
+        diag.error(op.loc,
+                   "unsupported tensor initializer: expected a single builtin "
+                   "call, got a complex expression");
+        return;
+    }
+    if (op.builtin_name == "call-init") {
+        diag.error(op.loc,
+                   "unsupported tensor initializer: non-builtin function calls "
+                   "cannot initialize tensors");
+        return;
+    }
+    if (op.builtin_name == "non-builtin-init") {
+        diag.error(op.loc,
+                   "unsupported tensor initializer: expected a builtin call");
+        return;
+    }
+    if (op.builtin_name == "tensor-array-init") {
+        diag.error(op.loc,
+                   "unsupported tensor initializer: array initializers are not "
+                   "supported for tensors");
+        return;
     }
     if (op.builtin_name.empty()) return;
     diag.error(op.loc, "unknown builtin '@" + op.builtin_name + "'");

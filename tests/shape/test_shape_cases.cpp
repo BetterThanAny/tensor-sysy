@@ -117,6 +117,8 @@ int main(int argc, char** argv) {
          "tensor<f32>[K=16, N=4]"},
         {"shape_all_ops_resolved", base + "/tensor_all_ops.tsy", true, "", 0,
          "tensor<f32>[M=4, N=4]"},
+        {"shape_nested_block_local_const", base + "/nested_block.tsy", true, "", 0,
+         "%C = add %A, %B : tensor<f32>[N=2, N=2]"},
 
         // --- bad: shape / arity / unknown builtin / unresolved --------------
         {"shape_bad_matmul_mismatch", base + "/bad_matmul_mismatch.tsy", false,
@@ -147,6 +149,14 @@ int main(int argc, char** argv) {
          "duplicate tensor value 'A'", 4, ""},
         {"shape_bad_tensor_self_init", base + "/bad_tensor_self_init.tsy", false,
          "unresolved tensor value 'B'", 4, ""},
+        {"shape_bad_complex_init", base + "/bad_complex_init.tsy", false,
+         "unsupported tensor initializer", 4, ""},
+        {"shape_bad_nested_unknown_builtin",
+         base + "/bad_nested_unknown_builtin.tsy", false,
+         "unknown builtin '@does_not_exist'", 5, ""},
+        {"shape_bad_tensor_control_flow",
+         base + "/bad_tensor_control_flow.tsy", false,
+         "tensor operations inside control-flow statements are not supported", 4, ""},
     };
 
     for (const auto& c : cases) run(c);

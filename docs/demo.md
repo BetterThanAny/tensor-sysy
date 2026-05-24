@@ -98,7 +98,7 @@ ctest --test-dir build -R "adapter_cuda|codegen_cuda|cli_cuda"  # 3/3
 
 # W9: scheduler + layout lowering
 .venv/bin/python benchmarks/run_shapes.py --check-scheduler
-# 末行应类似：1024^3: tiled/naive speedup = 1.2x+ (min required 1.20x)
+# 输出应包含 scheduler 256x256x256: tiled covered 等 coverage 行
 ctest --test-dir build -R "schedule|transpose_relu"       # 4/4
 
 # W10: transformer block e2e
@@ -107,7 +107,7 @@ ctest --test-dir build -R "schedule|transpose_relu"       # 4/4
 .venv/bin/python -m pytest tests/e2e/ -q                  # 3 passed
 
 # W11: CI + 本地 bench gate
-ctest --test-dir build --output-on-failure                # 32/32
+ctest --test-dir build --output-on-failure                # 33/33
 bash scripts/bench_local.sh                               # 目标 0 FAIL
 ```
 
@@ -168,7 +168,9 @@ bash scripts/bench_local.sh
 .venv/bin/python benchmarks/run_shapes.py --check-scheduler
 ```
 
-**预期**：末行 `1024^3: tiled/naive speedup = 1.2x+`（门槛 1.20×）。
+**预期**：输出每个 swept shape 的 scheduler coverage，例如
+`scheduler 256x256x256: tiled covered` 和
+`scheduler 1024x1024x1024: cublas covered`。
 
 如果确认性能真的变好了（不是噪声）、想重录 baseline：
 
@@ -190,13 +192,13 @@ bash scripts/bench_local.sh --update-baseline
 | `e2e_transformer_block_pytest` FAIL 但单跑 `pytest` 过 | ctest 拿不到 `TSY_PYTHON_EXECUTABLE` | 重新 configure：`cmake -S . -B build -DTSY_PYTHON_EXECUTABLE=$(pwd)/.venv/bin/python` |
 | `bench_local.sh` 连续 3 次都 FAIL 且 ratio 稳定 >1.15 | 真回归 | 先 git bisect 上一个绿 commit；再看 `benchmarks/run_shapes.py` 明细 |
 | `bench_local.sh` 1-2 次 FAIL 夹带 1 次 OK | 噪声 | 记录为 noise，不是回归 |
-| `run_shapes --check-scheduler` < 1.20× | 真回归（scheduler 没工作）| 检查 `schedule-cuda` pass 是否被 `--disable-pass` 影响到；看 `emit-lir` 是否仍带 variant |
+| `run_shapes --check-scheduler` 报 missing variant | benchmark sweep 没覆盖 scheduler 会选的 variant | 检查 `tsy-bench` 是否输出该 shape 的 scheduled variant；再看 `emit-lir` 是否仍带 variant |
 
 ## 8. 产物清单（跑完这份文档应有的东西）
 
 - `build/tsc` 能跑 §4 所有命令。
 - `build/out/{mlp, matmul_cuda_demo, transformer_block, transformer_block_cuda}` 能独立运行。
-- `ctest` 在本地机器 32/32，在 CPU-only 模拟 ~20/20。
+- `ctest` 在本地机器 33/33，在 CPU-only 模拟 ~20/20。
 - `bench_local.sh` 3 次内命中 0 FAIL。
 - `benchmarks/baseline/rtx3080_wsl.csv` 未被修改（除非你按了 `--update-baseline`）。
 

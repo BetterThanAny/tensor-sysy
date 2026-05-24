@@ -1,0 +1,8 @@
+const int M = 2;
+
+int after_return(tensor<f32>[M, M] A, tensor<f32>[M, M] B) {
+    return 0;
+    tensor<f32>[M, M] C = @add(A, B);
+}
+
+int main() { return 0; }
