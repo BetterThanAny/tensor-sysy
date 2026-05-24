@@ -1,5 +1,6 @@
 #include "verifier.h"
 
+#include <limits>
 #include <sstream>
 
 using namespace tsy;
@@ -53,6 +54,7 @@ bool requireResolved(const Value& v, DiagnosticEngine& diag, SourceLocation loc,
 bool requirePositiveResolvedDims(const Value& v, DiagnosticEngine& diag,
                                  SourceLocation loc, const char* role) {
     if (!requireResolved(v, diag, loc, role)) return false;
+    int64_t elements = 1;
     for (size_t i = 0; i < v.type.shape.dims.size(); ++i) {
         const auto& d = v.type.shape.dims[i];
         if (d.resolved && *d.resolved <= 0) {
@@ -63,6 +65,23 @@ bool requirePositiveResolvedDims(const Value& v, DiagnosticEngine& diag,
             diag.error(loc, oss.str());
             return false;
         }
+        if (d.resolved && *d.resolved > std::numeric_limits<int>::max()) {
+            std::ostringstream oss;
+            oss << role << " tensor '" << v.name << "' has dim "
+                << d.format() << " at axis " << i
+                << " which exceeds the runtime int32 limit.";
+            diag.error(loc, oss.str());
+            return false;
+        }
+        if (d.resolved && elements > std::numeric_limits<int>::max() / *d.resolved) {
+            std::ostringstream oss;
+            oss << role << " tensor '" << v.name << "' has shape "
+                << shapeAsString(v.type.shape)
+                << " whose element count exceeds the runtime int32 limit.";
+            diag.error(loc, oss.str());
+            return false;
+        }
+        if (d.resolved) elements *= *d.resolved;
     }
     return true;
 }
@@ -251,6 +270,12 @@ void verifyUnknown(const Op& op, DiagnosticEngine& diag) {
     diag.error(op.loc, "unknown builtin '@" + op.builtin_name + "'");
 }
 
+void verifyUnsupported(const Op& op, DiagnosticEngine& diag) {
+    const std::string name = op.builtin_name.empty() ? toString(op.kind)
+                                                     : op.builtin_name;
+    diag.error(op.loc, "unsupported builtin '@" + name + "'");
+}
+
 bool verifyFunctionTensorShapes(const Function& f, DiagnosticEngine& diag) {
     bool ok = true;
     for (const auto& p : f.params) {
@@ -279,6 +304,8 @@ void verifyModule(const Module& m, DiagnosticEngine& diag) {
                 case OpKind::RMSNorm:   verifyUnary(op, diag, "rmsnorm"); break;
                 case OpKind::Transpose: verifyTranspose(op, diag);        break;
                 case OpKind::ReLU:      verifyUnary(op, diag, "relu");    break;
+                case OpKind::View:
+                case OpKind::Permute:   verifyUnsupported(op, diag);      break;
                 case OpKind::Unknown:   verifyUnknown(op, diag); break;
                 default:
                     break;

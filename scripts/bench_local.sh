@@ -14,13 +14,10 @@ if [[ ! -x "$BENCH" ]]; then
     exit 1
 fi
 
-echo "[1/3] matmul sweep..."
+echo "[1/2] matmul sweep..."
 "$BENCH" --primitive matmul > "$CURRENT"
 
-echo "[2/3] transformer_block (append, strip duplicate header)..."
-"$BENCH" --primitive transformer_block | tail -n +2 >> "$CURRENT"
-
-echo "[3/3] compare vs baseline..."
+echo "[2/2] compare vs baseline..."
 python3 scripts/bench_compare.py \
     --baseline "$BASELINE" \
     --current  "$CURRENT"

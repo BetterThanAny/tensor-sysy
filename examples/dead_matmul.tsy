@@ -1,5 +1,6 @@
-// W5 DCE fixture: matmul result `C` is computed but never observed before
-// the function returns, so DCE must remove the matmul op.
+// W5 DCE fixture: run-lir/codegen print every materialised tensor buffer in
+// the current IR, so `C` remains observable even though there is no tensor
+// return value yet.
 const int M = 4;
 const int K = 8;
 const int N = 4;

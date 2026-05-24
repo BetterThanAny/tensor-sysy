@@ -7,13 +7,15 @@ namespace tsy::passes {
 
 namespace {
 
-// Collect every HIR Value that is currently consumed as an operand. These
-// are the values that MUST stay around. Everything else whose only user is
-// itself is dead.
+// Collect every HIR Value that is currently observable in this IR. Today the
+// runtime/codegen prints every materialised tensor buffer, and HIR has no
+// explicit tensor return value, so operation results themselves are roots.
+// Operand liveness then preserves their producer chains.
 std::unordered_set<const tsy::hir::Value*> collectLive(
     const tsy::hir::Function& f) {
     std::unordered_set<const tsy::hir::Value*> live;
     for (const auto& opPtr : f.ops) {
+        for (const auto& v : opPtr->results) live.insert(v.get());
         for (const auto& v : opPtr->operands) live.insert(v.get());
     }
     return live;
@@ -45,17 +47,18 @@ bool dropDeadOps(tsy::hir::Function& f) {
 // Dead-code elimination for tensor HIR.
 //
 // Algorithm:
-//   1. Build a set of values currently used as operands (the "live set").
+//   1. Build a set of values that are observable or used as operands.
 //   2. Remove any op whose results are all absent from the live set,
 //      except Return (terminator) and Unknown (preserves diagnostics for
 //      unhandled AST shapes).
 //   3. Iterate to a fixed point — removing one op can render its producer
 //      inputs unused and let the next pass delete them too.
 //
-// DCE is intentionally conservative: we never drop ops that have no
-// results (they might be side-effectful calls in later weeks) and we keep
-// the full original operand->producer chain intact, since HIR uses
-// shared_ptr<Value> so the producer Op carries no implicit owner.
+// DCE is intentionally conservative: until HIR grows explicit tensor return /
+// print roots, all op results are observable through run-lir/codegen dumps.
+// We never drop ops that have no results (they might be side-effectful calls
+// in later weeks) and we keep the full original operand->producer chain intact,
+// since HIR uses shared_ptr<Value> so the producer Op carries no implicit owner.
 void runDCE(tsy::hir::Module& m, tsy::DiagnosticEngine& /*diag*/) {
     for (auto& f : m.funcs) {
         while (dropDeadOps(*f)) { /* keep iterating until fixed point */ }

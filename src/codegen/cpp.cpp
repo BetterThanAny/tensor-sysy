@@ -10,10 +10,20 @@ namespace tsy::codegen {
 
 namespace {
 
-// Prefix buffer names so source-level identifiers can never collide with
-// C++ keywords, standard library symbols, or reserved names like `register`.
+std::string escapeString(const std::string& s) {
+    std::string out;
+    out.reserve(s.size());
+    for (char ch : s) {
+        if (ch == '\\' || ch == '"') out.push_back('\\');
+        out.push_back(ch);
+    }
+    return out;
+}
+
+// Use the stable LIR buffer id, not source names, so duplicate source-level
+// identifiers cannot create duplicate C++ variables.
 std::string identFor(const Buffer& b) {
-    return "buf_" + b.name;
+    return "buf_" + std::to_string(b.id);
 }
 
 const char* adapterSymbolFor(const std::string& primitive) {
@@ -75,7 +85,7 @@ bool emitCppModule(std::ostream& os, const Module& m,
 
     // --- buffer instantiation ------------------------------------------
     for (const auto& b : f->buffers) {
-        os << "    auto " << identFor(b) << " = makeBuf(\"" << b.name << "\", {";
+        os << "    auto " << identFor(b) << " = makeBuf(\"" << escapeString(b.name) << "\", {";
         for (size_t i = 0; i < b.dims.size(); ++i) {
             if (i) os << ", ";
             os << b.dims[i];
@@ -100,7 +110,9 @@ bool emitCppModule(std::ostream& os, const Module& m,
         if (s.kind != StmtKind::Call) continue;
         const char* sym = adapterSymbolFor(s.primitive);
         if (!sym) {
-            os << "    // skipped unsupported primitive: " << s.primitive << "\n";
+            os << "    std::cerr << \"unsupported primitive in generated C++: "
+               << escapeString(s.primitive) << "\\n\";\n";
+            os << "    return 1;\n";
             continue;
         }
         os << "    tsy::runtime::" << sym << "(";
@@ -114,7 +126,7 @@ bool emitCppModule(std::ostream& os, const Module& m,
 
     // --- result reporting ---------------------------------------------
     os << "    tsy::lir::RunResult result;\n"
-       << "    result.function_name = \"" << f->name << "\";\n"
+       << "    result.function_name = \"" << escapeString(f->name) << "\";\n"
        << "    result.ok = true;\n";
     for (const auto& b : f->buffers) {
         os << "    result.buffers.push_back(std::move(" << identFor(b) << "));\n";

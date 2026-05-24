@@ -223,7 +223,7 @@ class PrimaryExpAST : public BaseAST {
     Def def = def_number;
     BaseASTPtr subExp;
     std::string lVal;
-    int32_t number = 0;
+    int64_t number = 0;
     std::string arrayIdent;
     MulVecType expArray;
 

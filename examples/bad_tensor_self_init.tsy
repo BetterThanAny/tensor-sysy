@@ -1,0 +1,6 @@
+const int M = 2;
+
+int self_init(tensor<f32>[M, M] A) {
+    tensor<f32>[M, M] B = @relu(B);
+    return 0;
+}

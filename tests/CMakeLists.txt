@@ -150,12 +150,11 @@ if(TARGET tsy_runtime_cuda)
 endif()
 
 # W5 CLI smoke: --opt=O1 and --disable-pass=dce round-trip.
-add_test(NAME cli_emit_hir_o1_drops_dead
+add_test(NAME cli_emit_hir_o1_preserves_observable
     COMMAND tsc emit-hir --opt=O1 ${CMAKE_SOURCE_DIR}/examples/dead_matmul.tsy
 )
-set_tests_properties(cli_emit_hir_o1_drops_dead PROPERTIES
-    PASS_REGULAR_EXPRESSION "func @dead_block"
-    FAIL_REGULAR_EXPRESSION "matmul %A, %B"
+set_tests_properties(cli_emit_hir_o1_preserves_observable PROPERTIES
+    PASS_REGULAR_EXPRESSION "func @dead_block.*matmul %A, %B"
 )
 
 add_test(NAME cli_emit_hir_o1_disable_dce_keeps
@@ -185,6 +184,33 @@ set_tests_properties(cli_run_lir_matmul_tiny PROPERTIES
 add_test(NAME cli_help
     COMMAND tsc --help
 )
+
+add_test(NAME cli_bad_opt_exits_nonzero
+    COMMAND tsc emit-hir --opt=bad ${CMAKE_SOURCE_DIR}/examples/smoke.tsy
+)
+set_tests_properties(cli_bad_opt_exits_nonzero PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME cli_bad_disable_pass_exits_nonzero
+    COMMAND tsc emit-hir --opt=O1 --disable-pass=not-a-pass
+            ${CMAKE_SOURCE_DIR}/examples/smoke.tsy
+)
+set_tests_properties(cli_bad_disable_pass_exits_nonzero PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME cli_missing_output_path_exits_nonzero
+    COMMAND tsc emit-cpp ${CMAKE_SOURCE_DIR}/examples/smoke.tsy -o
+)
+set_tests_properties(cli_missing_output_path_exits_nonzero PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME cli_unknown_option_exits_nonzero
+    COMMAND tsc parse --definitely-unknown-option
+            ${CMAKE_SOURCE_DIR}/examples/smoke.tsy
+)
+set_tests_properties(cli_unknown_option_exits_nonzero PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME cli_unknown_command_exits_nonzero
+    COMMAND tsc nope ${CMAKE_SOURCE_DIR}/examples/smoke.tsy
+)
+set_tests_properties(cli_unknown_command_exits_nonzero PROPERTIES WILL_FAIL TRUE)
 
 add_test(NAME cli_parse_smoke
     COMMAND tsc parse ${CMAKE_SOURCE_DIR}/examples/smoke.tsy

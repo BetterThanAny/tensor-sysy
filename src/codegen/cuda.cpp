@@ -10,8 +10,18 @@ namespace tsy::codegen {
 
 namespace {
 
+std::string escapeString(const std::string& s) {
+    std::string out;
+    out.reserve(s.size());
+    for (char ch : s) {
+        if (ch == '\\' || ch == '"') out.push_back('\\');
+        out.push_back(ch);
+    }
+    return out;
+}
+
 std::string identFor(const Buffer& b) {
-    return "buf_" + b.name;
+    return "buf_" + std::to_string(b.id);
 }
 
 const char* adapterSymbolFor(const std::string& primitive) {
@@ -72,7 +82,7 @@ bool emitCudaModule(std::ostream& os, const Module& m,
     os << "int main() {\n";
 
     for (const auto& b : f->buffers) {
-        os << "    auto " << identFor(b) << " = makeBuf(\"" << b.name << "\", {";
+        os << "    auto " << identFor(b) << " = makeBuf(\"" << escapeString(b.name) << "\", {";
         for (size_t i = 0; i < b.dims.size(); ++i) {
             if (i) os << ", ";
             os << b.dims[i];
@@ -95,7 +105,9 @@ bool emitCudaModule(std::ostream& os, const Module& m,
         if (s.kind != StmtKind::Call) continue;
         const char* sym = adapterSymbolFor(s.primitive);
         if (!sym) {
-            os << "    // skipped unsupported primitive: " << s.primitive << "\n";
+            os << "    std::cerr << \"unsupported primitive in generated CUDA: "
+               << escapeString(s.primitive) << "\\n\";\n";
+            os << "    return 1;\n";
             continue;
         }
         os << "    tsy::runtime::" << sym << "(";
@@ -117,7 +129,7 @@ bool emitCudaModule(std::ostream& os, const Module& m,
     os << "\n";
 
     os << "    tsy::lir::RunResult result;\n"
-       << "    result.function_name = \"" << f->name << "\";\n"
+       << "    result.function_name = \"" << escapeString(f->name) << "\";\n"
        << "    result.ok = true;\n";
     for (const auto& b : f->buffers) {
         os << "    result.buffers.push_back(std::move(" << identFor(b) << "));\n";

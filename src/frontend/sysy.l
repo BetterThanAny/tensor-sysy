@@ -13,11 +13,20 @@
 
 using namespace std;
 
-// Track line through flex's built-in yylineno. Column tracking will be added
-// when diagnostics need it; for W0 we only assert on line numbers.
-#define YY_USER_ACTION                                                   \
-    yylloc.first_line = yylloc.last_line = yylineno;                     \
-    yylloc.first_column = yylloc.last_column = 0;
+static int yycolumn = 1;
+
+static void updateLocation(const char* text, int len) {
+    yylloc.first_line = yylineno;
+    yylloc.first_column = yycolumn;
+    for (int i = 0; i < len; ++i) {
+        if (text[i] == '\n') yycolumn = 1;
+        else ++yycolumn;
+    }
+    yylloc.last_line = yylineno;
+    yylloc.last_column = yycolumn;
+}
+
+#define YY_USER_ACTION updateLocation(yytext, yyleng);
 
 %}
 
@@ -68,9 +77,9 @@ LOrOperator   \|\|
 
 {Identifier}    { yylval.str_val = new string(yytext); return IDENT; }
 
-{Decimal}       { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
-{Octal}         { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
-{Hexadecimal}   { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
+{Decimal}       { yylval.int_val = strtoll(yytext, nullptr, 0); return INT_CONST; }
+{Octal}         { yylval.int_val = strtoll(yytext, nullptr, 0); return INT_CONST; }
+{Hexadecimal}   { yylval.int_val = strtoll(yytext, nullptr, 0); return INT_CONST; }
 
 {UnaryOperator} { yylval.str_val = new string(yytext); return UNARYOP; }
 {MulOperator}   { yylval.str_val = new string(yytext); return MULOP; }

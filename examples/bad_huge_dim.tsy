@@ -1,0 +1,4 @@
+int huge(tensor<f32>[4294967297, 1] A) {
+    tensor<f32>[4294967297, 1] B = @relu(A);
+    return 0;
+}

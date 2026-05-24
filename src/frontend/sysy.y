@@ -35,7 +35,7 @@ void yyerror(tsy::BaseASTPtr &ast, tsy::DiagnosticEngine &diag,
 
 %union {
   std::string *str_val;
-  int int_val;
+  long long int_val;
   tsy::BaseAST *ast_val;
   tsy::MulVecType *mul_val;
 }

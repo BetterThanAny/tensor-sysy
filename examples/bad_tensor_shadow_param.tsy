@@ -1,0 +1,6 @@
+const int M = 2;
+
+int shadow_param(tensor<f32>[M, M] A) {
+    tensor<f32>[M, M] A = @relu(A);
+    return 0;
+}

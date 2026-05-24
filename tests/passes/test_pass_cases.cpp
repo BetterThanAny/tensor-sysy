@@ -55,15 +55,16 @@ std::unique_ptr<Loaded> load(const std::string& path) {
 
 // --- cases -----------------------------------------------------------------
 
-// DCE removes a matmul whose result is not consumed anywhere before return.
-void caseDceRemovesDeadMatmul(const std::string& dir) {
-    const std::string label = "dce_removes_dead_matmul";
+// DCE must preserve tensor results because run-lir/codegen currently print
+// every materialised tensor buffer.
+void caseDcePreservesObservableMatmul(const std::string& dir) {
+    const std::string label = "dce_preserves_observable_matmul";
     auto l = load(dir + "/dead_matmul.tsy");
     if (!l) { fail(label, "load failed"); return; }
     size_t before = opCount(*l->mod, "dead_block");  // matmul + return = 2
     tsy::passes::runDCE(*l->mod, l->diag);
-    size_t after = opCount(*l->mod, "dead_block");   // return only = 1
-    if (before != 2 || after != 1) {
+    size_t after = opCount(*l->mod, "dead_block");   // matmul + return = 2
+    if (before != 2 || after != 2) {
         std::ostringstream oss;
         oss << "op counts off: before=" << before << " after=" << after;
         fail(label, oss.str());
@@ -96,15 +97,15 @@ void caseDisableDceKeepsMatmul(const std::string& dir) {
     auto l = load(dir + "/dead_matmul.tsy");
     if (!l) { fail(label, "load failed"); return; }
 
-    // Baseline: O1 drops the matmul.
+    // Baseline: O1 preserves the matmul because result buffers are observable.
     auto pm = tsy::passes::buildPipelineO1();
     pm.run(*l->mod, l->diag);
-    if (opCount(*l->mod, "dead_block") != 1) {
-        fail(label, "baseline O1 did not drop matmul");
+    if (opCount(*l->mod, "dead_block") != 2) {
+        fail(label, "baseline O1 dropped an observable matmul");
         return;
     }
 
-    // Re-load and run with DCE disabled — matmul must stay.
+    // Re-load and run with DCE disabled — the same observable matmul must stay.
     auto l2 = load(dir + "/dead_matmul.tsy");
     if (!l2) { fail(label, "reload failed"); return; }
     auto pm2 = tsy::passes::buildPipelineO1();
@@ -194,7 +195,7 @@ int main(int argc, char** argv) {
         return 2;
     }
     const std::string dir = argv[1];
-    caseDceRemovesDeadMatmul(dir);
+    caseDcePreservesObservableMatmul(dir);
     caseDceIdempotent(dir);
     caseDisableDceKeepsMatmul(dir);
     caseO1PreservesLiveMatmul(dir);

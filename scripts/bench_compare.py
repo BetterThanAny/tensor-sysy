@@ -64,9 +64,11 @@ def main() -> int:
     # Only compare rows tracked in baseline. tsy-bench may sweep more shapes
     # than the regression gate tracks (e.g. tiny shapes kept for tiled-alignment
     # correctness coverage but excluded from baseline because measurement
-    # noise dominates their <0.5ms median). Extra current rows are silently
-    # ignored — `cat /tmp/tsy_bench_current.csv` to inspect them.
+    # noise dominates their <0.5ms median). Extra current rows are reported
+    # below so the gate cannot hide that the current run is measuring more
+    # than the baseline tracks.
     tracked_keys = sorted(baseline.keys())
+    extra_keys = sorted(set(current.keys()) - set(baseline.keys()))
 
     for key in tracked_keys:
         prim, M, K, N, var = key
@@ -88,6 +90,10 @@ def main() -> int:
     ok_count = len(tracked_keys) - fail_count - warn_count - imp_count - missing_count
     print(f"\nsummary: {fail_count} FAIL, {warn_count} WARN, {imp_count} IMPROVED, "
           f"{missing_count} MISSING, {ok_count} OK")
+    if extra_keys:
+        print(f"info: {len(extra_keys)} current row(s) are not tracked by the baseline")
+        for prim, M, K, N, var in extra_keys:
+            print(f"EXTRA    {prim:18s} {M:>5}x{K:>5}x{N:>5} {var:12s}")
 
     if imp_count > 0 and not args.update_baseline:
         print("hint: confirmed improvements? re-run with --update-baseline")
@@ -97,7 +103,7 @@ def main() -> int:
         print(f"baseline updated: {args.baseline}\n"
               f"\u2192 review the diff and commit: git add {args.baseline}")
 
-    return 1 if fail_count > 0 else 0
+    return 1 if fail_count > 0 or missing_count > 0 else 0
 
 
 if __name__ == "__main__":

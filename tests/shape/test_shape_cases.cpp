@@ -137,6 +137,16 @@ int main(int argc, char** argv) {
          "unknown builtin '@gelu'", 6, ""},
         {"shape_bad_unresolved_dim", base + "/bad_unresolved_dim.tsy", false,
          "unknown constant 'M'", 0, ""},
+        {"shape_bad_huge_dim", base + "/bad_huge_dim.tsy", false,
+         "exceeds the runtime int32 limit", 1, ""},
+        {"shape_bad_view_unsupported", base + "/bad_view_unsupported.tsy", false,
+         "unsupported builtin '@view'", 4, ""},
+        {"shape_bad_tensor_assignment", base + "/bad_tensor_assignment.tsy", false,
+         "tensor assignment to 'B' is not supported", 5, ""},
+        {"shape_bad_tensor_shadow_param", base + "/bad_tensor_shadow_param.tsy", false,
+         "duplicate tensor value 'A'", 4, ""},
+        {"shape_bad_tensor_self_init", base + "/bad_tensor_self_init.tsy", false,
+         "unresolved tensor value 'B'", 4, ""},
     };
 
     for (const auto& c : cases) run(c);

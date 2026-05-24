@@ -1,0 +1,6 @@
+const int M = 2;
+
+int bad_view(tensor<f32>[M, M] A) {
+    tensor<f32>[M, M] B = @view(A);
+    return 0;
+}

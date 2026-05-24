@@ -114,7 +114,11 @@ struct Lowerer {
                 if (tt) v->type = convertTensorType(*tt);
             }
             curFn->params.push_back(v);
-            names[param->ident] = v;
+            if (names.count(param->ident)) {
+                diag.error(param->loc, "duplicate value name '" + param->ident + "'");
+            } else {
+                names[param->ident] = v;
+            }
         }
 
         if (auto* blk = dynamic_cast<const BlockAST*>(fn.block.get())) {
@@ -156,30 +160,41 @@ struct Lowerer {
         auto* tt = dynamic_cast<const TensorTypeAST*>(vdef.tensorType.get());
         TensorType type = tt ? convertTensorType(*tt) : TensorType{};
 
+        if (names.count(vdef.ident)) {
+            diag.error(vdef.loc, "duplicate tensor value '" + vdef.ident + "'");
+            return;
+        }
+
         auto result = std::make_shared<Value>();
         result->name = "%" + vdef.ident;
         result->type = type;
-        names[vdef.ident] = result;
 
-        if (!vdef.initVal) return;  // uninitialised tensor; no op in W2.
+        if (!vdef.initVal) {
+            names[vdef.ident] = result;
+            return;
+        }
 
         auto* iv = dynamic_cast<const InitValAST*>(vdef.initVal.get());
         if (!iv || iv->isArray || !iv->subExp) {
             emitUnknown(result, "tensor-array-init", vdef.loc);
+            names[vdef.ident] = result;
             return;
         }
 
         const UnaryExpAST* u = unwrapToUnary(iv->subExp.get());
         if (!u) {
             emitUnknown(result, "complex-init", vdef.loc);
+            names[vdef.ident] = result;
             return;
         }
         if (u->def != UnaryExpAST::def_builtin) {
             const char* why = u->def == UnaryExpAST::def_func ? "call-init" : "non-builtin-init";
             emitUnknown(result, why, vdef.loc);
+            names[vdef.ident] = result;
             return;
         }
         emitBuiltinOp(result, *u);
+        names[vdef.ident] = result;
     }
 
     void emitBuiltinOp(ValuePtr result, const UnaryExpAST& u) {
@@ -232,6 +247,12 @@ struct Lowerer {
             op->kind = OpKind::Return;
             op->loc = stmt->loc;
             curFn->ops.push_back(std::move(op));
+        } else if (stmt->def == StmtAST::def_lval) {
+            if (names.count(stmt->lVal)) {
+                diag.error(stmt->loc,
+                           "tensor assignment to '" + stmt->lVal +
+                           "' is not supported; initialize tensors at declaration");
+            }
         }
     }
 };

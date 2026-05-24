@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "../codegen/cpp.h"
@@ -62,8 +63,16 @@ struct Options {
     std::string output_path;  // empty = stdout
 };
 
-Options parseOptions(int argc, char** argv) {
-    Options o;
+bool isPipelineCommand(const std::string& cmd) {
+    return cmd == "emit-hir" || cmd == "emit-lir" || cmd == "emit-cpp" ||
+           cmd == "emit-cu" || cmd == "run-lir";
+}
+
+bool isKnownCommand(const std::string& cmd) {
+    return cmd == "parse" || cmd == "dump-ast" || isPipelineCommand(cmd);
+}
+
+bool parseOptions(int argc, char** argv, Options& o, std::string& error) {
     for (int i = 2; i < argc; ++i) {
         std::string a = argv[i];
         const std::string kOpt = "--opt=";
@@ -77,14 +86,64 @@ Options parseOptions(int argc, char** argv) {
         } else if (a.rfind(kBackend, 0) == 0) {
             o.backend = a.substr(kBackend.size());
         } else if (a.rfind(kOutput, 0) == 0) {
+            if (!o.output_path.empty()) {
+                error = "duplicate output path";
+                return false;
+            }
             o.output_path = a.substr(kOutput.size());
         } else if (a == "-o") {
-            if (i + 1 < argc) o.output_path = argv[++i];
+            if (i + 1 >= argc) {
+                error = "-o requires a path";
+                return false;
+            }
+            if (!o.output_path.empty()) {
+                error = "duplicate output path";
+                return false;
+            }
+            o.output_path = argv[++i];
         } else if (!a.empty() && a[0] != '-') {
+            if (!o.path.empty()) {
+                error = "multiple input files are not supported";
+                return false;
+            }
             o.path = a;
+        } else {
+            error = "unknown option '" + a + "'";
+            return false;
         }
     }
-    return o;
+    return true;
+}
+
+bool validateOptions(const Options& o, const std::string& cmd, std::string& error) {
+    if (o.opt != "O0" && o.opt != "O1") {
+        error = "invalid --opt='" + o.opt + "' (expected O0 or O1)";
+        return false;
+    }
+    if (!isPipelineCommand(cmd) && o.opt != "O0") {
+        error = "--opt only applies to emit-hir, emit-lir, emit-cpp, emit-cu, run-lir";
+        return false;
+    }
+    if (cmd != "run-lir" && o.backend != "native") {
+        error = "--backend only applies to run-lir";
+        return false;
+    }
+    if (cmd != "emit-cpp" && cmd != "emit-cu" && !o.output_path.empty()) {
+        error = "-o/--output only applies to emit-cpp and emit-cu";
+        return false;
+    }
+
+    auto pm = (o.opt == "O1") ? tsy::passes::buildPipelineO1()
+                              : tsy::passes::buildPipelineO0();
+    const auto names = pm.names();
+    std::unordered_set<std::string> valid(names.begin(), names.end());
+    for (const auto& d : o.disabled) {
+        if (!valid.count(d)) {
+            error = "unknown pass '" + d + "'";
+            return false;
+        }
+    }
+    return true;
 }
 
 tsy::passes::PassManager buildPipeline(const Options& o) {
@@ -141,6 +200,7 @@ std::unique_ptr<tsy::hir::Module> parseAndRunPipeline(
         diag.report(d.level, d.loc, d.message);
     }
     if (r.diagnostics.hasErrors()) {
+        r.diagnostics.print(std::cerr);
         std::cerr << "pipeline failed: " << o.path << "\n";
         return nullptr;
     }
@@ -304,11 +364,25 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    if (!isKnownCommand(cmd)) {
+        std::cerr << "tsc: unknown command '" << cmd << "'\n\n" << kUsage;
+        return 1;
+    }
+
     if (argc < 3) {
         std::cerr << "tsc " << cmd << ": missing input file.\n\n" << kUsage;
         return 1;
     }
-    auto opts = parseOptions(argc, argv);
+    Options opts;
+    std::string option_error;
+    if (!parseOptions(argc, argv, opts, option_error)) {
+        std::cerr << "tsc " << cmd << ": " << option_error << "\n\n" << kUsage;
+        return 1;
+    }
+    if (!validateOptions(opts, cmd, option_error)) {
+        std::cerr << "tsc " << cmd << ": " << option_error << "\n\n" << kUsage;
+        return 1;
+    }
     if (opts.path.empty()) {
         std::cerr << "tsc " << cmd << ": missing input file.\n\n" << kUsage;
         return 1;
@@ -322,6 +396,5 @@ int main(int argc, char** argv) {
     if (cmd == "emit-cu") return cmdEmitCu(opts);
     if (cmd == "run-lir") return cmdRunLir(opts);
 
-    std::cerr << "tsc: unknown command '" << cmd << "'\n\n" << kUsage;
     return 1;
 }
